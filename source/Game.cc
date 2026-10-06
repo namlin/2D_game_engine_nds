@@ -13,12 +13,24 @@ Game::Game(void) {
   this->asset_manager = new AssetManager();
 
   if (this->asset_manager == nullptr) {
+    NF_Error(1, "[GAME] ERROR: No dynamic memory was allocated for asset_manager.", 1);
+    return;
+  }
+
+  this->controller_manager = new ControllerManager();
+
+  if (this->controller_manager == nullptr) {
+    NF_Error(1, "[Game] ERROR: No dynamic memory was allocated for controller_manager.", 1);
     return;
   }
 }
 
 Game::~Game(void) {
   delete this->asset_manager;
+  delete this->controller_manager;
+
+  this->asset_manager = nullptr;
+  this->controller_manager = nullptr;
 }
 
 Game* Game::get_instance(void) {
@@ -60,7 +72,6 @@ void Game::init(void) {
   // Initialize 3D Sprite system and allocate slots;
   NF_InitSpriteBuffers();
   NF_Init3dSpriteSys();  // Allocate RAM structures for 3D sprites.
-  // NF_Init3dSprites();  // Allocate RAM structures for 3D sprites.
 
   // Load background files from NitroFS:
   NF_LoadTiledBg("bg/nature", "bg3", 256, 256);
@@ -108,10 +119,51 @@ void Game::init_nitroFS(void) {
 
 void Game::setup(void) {}
 
+/*
 void Game::process_input(void) {
   scanKeys();
   touchRead(&touchscreen);
   keys = keysHeld();
+}*/
+
+void Game::process_input(void) {
+  // Scan hardware keys:
+  scanKeys();
+  uint32_t keys_pressed  = keysDown();
+  uint32_t keys_released = keysUp();
+  uint32_t keys_held     = keysHeld();
+
+  // Read raw touch coordinates directly from libnds:
+  touchPosition touch;
+  touchRead(&touch);
+
+  // Handle Quit / Exit triggers:
+  if (keys_pressed & KEY_START) {
+    // this->scene_manager->stop_scene();
+    this->is_running = false;
+    return;
+  }
+
+  // Update ControllerManager's key states:
+  this->controller_manager->update();
+
+  // Touch Screen / Mouse Events:
+  if (keys_held & KEY_TOUCH) {
+    this->controller_manager->set_mouse_position(touch.px, touch.py);
+  }
+
+  if (keys_pressed & KEY_TOUCH) {
+    this->controller_manager->set_mouse_position(touch.px, touch.py);
+    this->controller_manager->set_mouse_button_down(KEY_TOUCH);
+
+    // Emit click event using touch pixel coordinates (px, py)
+    // this->event_manager->emit_event<ClickEvent>(KEY_TOUCH, touch.px, touch.py);
+  }
+
+  if (keys_released & KEY_TOUCH) {
+    this->controller_manager->set_mouse_position(touch.px, touch.py);
+    this->controller_manager->set_mouse_button_up(KEY_TOUCH);
+  }
 }
 
 void Game::update(void) {

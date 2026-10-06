@@ -12,7 +12,7 @@
 // Managers:
 #include "../include/Constants.h"
 #include "../include/AssetManager.h"
-// #include "../include/ControllerManager.h"
+#include "../include/ControllerManager.h"
 // #include "../include/EventManager.h"
 
 
@@ -55,8 +55,6 @@ class Game {
 
   uint16_t millisecs_previous_frame = 0;
 
-  // SDL_Renderer* renderer = nullptr;
-
   bool is_running = false;
 
   AssetManager* asset_manager = nullptr;
@@ -79,7 +77,7 @@ class Game {
   void render(void);
 
  public:
-  // ControllerManager* controller_manager = nullptr;
+  ControllerManager* controller_manager = nullptr;
 
   static Game* get_instance(void);
 

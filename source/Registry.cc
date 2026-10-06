@@ -77,5 +77,3 @@ void Registry::update(void) {
 
   this->entities_to_remove.clear();
 }
-
-// void Registry::add_system(Entity) {}
