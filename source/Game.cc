@@ -142,7 +142,22 @@ void Game::init_nitroFS(void) {
   NF_SetRootFolder("NITROFS");
 }
 
-void Game::setup(void) {}
+void Game::setup(void) {
+  // Add systems:
+  this->registry->add_system<AnimationSystem>();
+  this->registry->add_system<CollisionSystem>();
+  this->registry->add_system<DamageSystem>();
+  this->registry->add_system<MovementSystem>();
+  this->registry->add_system<RenderSystem>();
+  // this->registry->add_system<RenderTextSystem>();  // TODO
+  // this->registry->add_system<ScriptSystem>();  // TODO
+  // this->registry->add_system<UISystem>();  // TODO
+
+  // this->scene_manager->load_scene_from_script("./assets/lua_scripts/scenes.lua", this->lua);  // TODO
+
+  // this->lua.open_libraries(sol::lib::base, sol::lib::math);  // TODO
+  // this->registry->get_system<ScriptSystem>().create_lua_binding(this->lua);  // TODO
+}
 
 void Game::process_input(void) {
   // Scan hardware keys:
@@ -185,9 +200,39 @@ void Game::process_input(void) {
 }
 
 void Game::update(void) {
+  // Increment global tick counter (used by AnimationSystem and timed events)
   global_frame_counter++;
 
-  // Move tail sprites:
+  // Fixed delta time for 60Hz NDS hardware (~0.016667 seconds)
+  // In fixed-point (20.12 format): ~68 units (1/60 * 4096)
+  // If floating-point is needed:
+  float delta_time = 1.0f / 60.0f;
+
+  // Update input hardware state (libnds):
+  scanKeys();
+
+  // Update the engine systems:
+  this->event_manager->reset();
+  this->registry->get_system<DamageSystem>().subscribe_to_collision_event(*this->event_manager);
+  // this->registry->get_system<UISystem>().subscribe_to_click_event(*this->event_manager);  // TODO
+
+  this->registry->update();
+
+  // this->registry->get_system<ScriptSystem>().update(this->lua);  // TODO
+  this->registry->get_system<AnimationSystem>().update();
+  this->registry->get_system<CollisionSystem>().update(*this->event_manager);
+  this->registry->get_system<MovementSystem>().update(delta_time);
+
+  // Push updated sprite transformations to OAM VRAM:
+  NF_SpriteOamSet(0);  // Top screen OAM update.
+  NF_SpriteOamSet(1);  // Bottom screen OAM update.
+
+  this->temporary();  // TODO: remove this from here.
+}
+
+// TODO: move this to another place.
+void Game::temporary(void) {
+    // Move tail sprites:
   for (int n = MAXSPRITES - 1; n > 0; n--) {
     x[n] = x[n - 1];
     y[n] = y[n - 1];
@@ -220,18 +265,27 @@ void Game::update(void) {
 }
 
 void Game::render(void) {
-  // Draw 3D sprites to geometry pipeline:
-  NF_Draw3dSprites();
+  // Update 2D sprite positions in NFlib OAM buffers via ECS:
+  this->registry->get_system<RenderSystem>().update();
 
-  // Flush GPU command pipeline:
+  // Update text positions / NFlib text layers:
+  // TODO: include the asset manager as a parameter.
+  // this->registry->get_system<RenderTextSystem>().update();  // TODO
+
+  // Draw 3D sprites:
+  NF_Draw3dSprites();
   glFlush(0);
 
-  // Synchronize to frame refresh (60 FPS tick):
-  swiWaitForVBlank();
+  // Flush NFlib's shadow OAM buffer to the DS hardware OAM registers.
+  // Screen 0 = Top Display, Screen 1 = Bottom Display.
+  NF_SpriteOamSet(0);
+  NF_SpriteOamSet(1);
 
-  // Update OAM engine structures if needed:
   oamUpdate(&oamMain);
   oamUpdate(&oamSub);
+
+  // Synchronize to frame refresh (~60 FPS VBlank interrupt):
+  swiWaitForVBlank();
 }
 
 void Game::run(void) {
@@ -243,6 +297,10 @@ void Game::run(void) {
 }
 
 void Game::destroy(void) {
+  if (this->asset_manager != nullptr) {
+    this->asset_manager->clear_assets();
+  }
+
   delete instance;
   instance = nullptr;
 }

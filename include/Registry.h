@@ -146,9 +146,11 @@ template <typename TSystem>
 TSystem& Registry::get_system(void) const {
   auto system = this->systems.find(std::type_index(typeid(TSystem)));
 
+  /*
   if (system == this->systems.end()) {
     throw std::runtime_error("System not found");
-  }
+    // TODO: add error.
+  }*/
 
   return *static_cast<TSystem*>(system->second);
 }

@@ -78,6 +78,8 @@ class Game {
   void setup(void);
   void run(void);
   void destroy(void);
+
+  void temporary(void);  // TODO: remove this.
 };
 
 #endif  // GAME_H

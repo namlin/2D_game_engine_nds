@@ -1,11 +1,8 @@
 #include "../include/AssetManager.h"
 
-AssetManager::AssetManager(void) : next_available_slot(0) {
-  // std::cout << "[AssetManager] Constructor Executing.\n";  // TEST
-}
+AssetManager::AssetManager(void) : next_available_slot(0) {}
 
 AssetManager::~AssetManager(void) {
-  // std::cout << "[AssetManager] Destructor Executing.\n";  // TEST
   this->clear_assets();
 }
 
@@ -46,5 +43,5 @@ u16 AssetManager::get_texture_id(const std::string& id) const {
     return it->second;  // Returns NFlib slot number.
   }
 
-  return 255; // 255 is typically used as an invalid slot sentinel in NFlib.
+  return 255;  // 255 is typically used as an invalid slot sentinel in NFlib.
 }

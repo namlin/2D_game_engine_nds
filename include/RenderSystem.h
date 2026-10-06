@@ -34,7 +34,7 @@ class RenderSystem : public System {
       // RotScale handling (if entity uses rotation or scaling):
       if (sprite.is_rotscale) {
         // NFlib rotscale matrices use 8-bit fixed precision (256 = 1.0f scale)
-        s16 scale_x = transform.scale.x >> 4; // Convert 20.12 fixed down to 256-base
+        s16 scale_x = transform.scale.x >> 4;  // Convert 20.12 fixed down to 256-base
         s16 scale_y = transform.scale.y >> 4;
 
         // Apply rotation angle (0-511) and scale to assigned matrix slot:
