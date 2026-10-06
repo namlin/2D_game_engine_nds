@@ -7,7 +7,6 @@
 #include <stdio.h>
 
 #include <cstdint>
-// #include <iostream>
 
 // Managers:
 #include "../include/Constants.h"
@@ -15,19 +14,17 @@
 #include "../include/ControllerManager.h"
 // #include "../include/EventManager.h"
 
-
 // ECS:
 #include "../include/Component.h"
 #include "../include/Entity.h"
 #include "../include/Registry.h"
 #include "../include/System.h"
 
-/*
 // Components:
 #include "../include/AnimationComponent.h"
 #include "../include/CircleColliderComponent.h"
 #include "../include/RigidBodyComponent.h"
-#include "../include/ScriptComponent.h"
+// #include "../include/ScriptComponent.h"
 #include "../include/SpriteComponent.h"
 #include "../include/TransformComponent.h"
 
@@ -37,11 +34,7 @@
 #include "../include/DamageSystem.h"
 #include "../include/MovementSystem.h"
 #include "../include/RenderSystem.h"
-#include "../include/ScriptSystem.h"
-*/
-
-const uint8_t FPS = 30;
-const uint16_t MILLISECS_PER_FRAME = 1000 / FPS;
+// #include "../include/ScriptSystem.h"
 
 class Game {
  private:
@@ -58,9 +51,9 @@ class Game {
   bool is_running = false;
 
   AssetManager* asset_manager = nullptr;
-  // EventManager* event_manager = nullptr;
+  EventManager* event_manager = nullptr;
 
-  // Registry* registry = nullptr;
+  Registry* registry = nullptr;
 
   // --- Singleton Encapsulation ---
   Game(void);

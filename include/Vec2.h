@@ -3,25 +3,30 @@
 
 #include <nds.h>
 
-// 20.12 Fixed-point 2D Vector (NDS Hardware Optimized):
 struct Vec2f {
   s32 x;
   s32 y;
 
-  Vec2f(s32 x = 0, s32 y = 0) : x(x), y(y) {}
+  constexpr Vec2f(s32 xValue = 0, s32 yValue = 0)
+      : x(xValue), y(yValue) {}
 
-  // Convenience constructor for standard floats:
-  Vec2f(float fx, float fy)
-        : x(floatToFixed(fx, 12)), y(floatToFixed(fy, 12)) {}
+  static Vec2f fromFloat(float fx, float fy) {
+    return Vec2f(
+      floatToFixed(fx, 12),
+      floatToFixed(fy, 12)
+    );
+  }
 
-  // Basic operator overloads:
   Vec2f operator+(const Vec2f& rhs) const {
     return Vec2f(x + rhs.x, y + rhs.y);
   }
 
   Vec2f operator*(s32 scalar) const {
-    return Vec2f((x * scalar) >> 12, (y * scalar) >> 12);
+    return Vec2f(
+      (x * scalar) >> 12,
+      (y * scalar) >> 12
+    );
   }
 };
 
-#endif // VEC2_H
+#endif

@@ -4,6 +4,8 @@
 #include <nds.h>
 #include <nf_lib.h>
 
+#include "../include/Constants.h"
+
 struct AnimationComponent {
   u16 total_frames = 0;
   u16 current_frame = 0;
@@ -17,7 +19,7 @@ struct AnimationComponent {
     this->current_frame = 0;
     this->frame_speed_rate = frame_speed_rate;
     this->is_loop = is_loop;
-    this->start_time = NF_GetFrame();
+    this->start_time = global_frame_counter;
   }
 };
 

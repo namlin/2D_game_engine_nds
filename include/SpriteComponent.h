@@ -6,24 +6,18 @@
 #include <nf_lib.h>
 
 struct SpriteComponent {
-  std::string gfx_name;  // Base filename without extension.
-  u8 screen;  // 0 = Top Screen, 1 = Bottom Screen.
-  u8 sprite_id;  // NFlib Sprite ID (0 to 127).
-  u16 width;  // Frame width.
-  u16 height;  // Frame height.
-  s16 x;  // Screen X position.
-  s16 y;  // Screen Y position.
+    u8 screen;       // 0 = Top screen, 1 = Bottom screen
+    u8 id;           // NFlib allocated sprite slot ID (0 - 127)
+    u16 gfx_id;      // Graphics ID loaded in VRAM
+    u16 palette_id;  // Palette ID loaded in VRAM
+    u16 width;
+    u16 height;
+    bool is_rotscale;
 
-  SpriteComponent(const std::string& gfx_name = "", u8 screen = 0,
-                  u8 sprite_id = 0, u16 width = 0, u16 height = 0,
-                  s16 x = 0, s16 y = 0)
-      : gfx_name(gfx_name),
-        screen(screen),
-        sprite_id(sprite_id),
-        width(width),
-        height(height),
-        x(x),
-        y(y) {}
+    SpriteComponent(u8 screen = 0, u8 id = 0, u16 width = 32, u16 height = 32,
+                    bool is_rotscale = false)
+        : screen(screen), id(id), gfx_id(0), palette_id(0), width(width),
+          height(height), is_rotscale(is_rotscale) {}
 };
 
 #endif // SPRITECOMPONENT_H

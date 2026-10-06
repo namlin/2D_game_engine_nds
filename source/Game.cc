@@ -1,13 +1,16 @@
 #include "../include/Game.h"
 
+// Global variables:
+u32 global_frame_counter = 0;
+u16 keys = 0;
+touchPosition touchscreen = {};
+
 // Variables:
+// TODO: move this to another place.
 s16 x[MAXSPRITES];
 s16 y[MAXSPRITES];
 s16 ix = 4;
 s16 iy = 4;
-
-u16 keys = 0;  // Keys currently pressed.
-touchPosition touchscreen;
 
 Game::Game(void) {
   this->asset_manager = new AssetManager();
@@ -23,14 +26,36 @@ Game::Game(void) {
     NF_Error(1, "[Game] ERROR: No dynamic memory was allocated for controller_manager.", 1);
     return;
   }
+
+  this->event_manager = new EventManager();
+
+  if (this->event_manager == nullptr) {
+    NF_Error(1, "[Game] ERROR: No dynamic memory was allocated for event_manager.", 1);
+    return;
+  }
+
+  // TODO: SceneManager
+
+  this->registry = new Registry();
+
+  if (this->registry == nullptr) {
+    NF_Error(1, "[Game] ERROR: No dynamic memory was allocated for registry.", 1);
+    return;
+  }
 }
 
 Game::~Game(void) {
   delete this->asset_manager;
   delete this->controller_manager;
+  delete this->event_manager;
+  // delete this->scene_manager;  // TODO
+  delete this->registry;
 
   this->asset_manager = nullptr;
   this->controller_manager = nullptr;
+  this->event_manager = nullptr;
+  // this->scene_manager = nullptr;  // TODO
+  this->registry = nullptr;
 }
 
 Game* Game::get_instance(void) {
@@ -119,13 +144,6 @@ void Game::init_nitroFS(void) {
 
 void Game::setup(void) {}
 
-/*
-void Game::process_input(void) {
-  scanKeys();
-  touchRead(&touchscreen);
-  keys = keysHeld();
-}*/
-
 void Game::process_input(void) {
   // Scan hardware keys:
   scanKeys();
@@ -167,6 +185,8 @@ void Game::process_input(void) {
 }
 
 void Game::update(void) {
+  global_frame_counter++;
+
   // Move tail sprites:
   for (int n = MAXSPRITES - 1; n > 0; n--) {
     x[n] = x[n - 1];
