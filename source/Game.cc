@@ -117,15 +117,15 @@ void Game::init(void) {
   for (size_t n = 0; n < MAXSPRITES; n++) {
     Entity entity = this->registry->create_entity();
 
-    s16 x = 128 - 32;
-    s16 y = 96 - 32;
+    x[n] = 128 - 32;
+    y[n] = 96 - 32;
 
     // 1. Tell NFlib to instantiate the 3D sprite hardware object
     // Signature: NF_Create3dSprite(sprite_slot, gfx_slot, pal_slot, x, y)
-    NF_Create3dSprite(static_cast<u8>(n), gfx_id, pal_id, x, y);
+    NF_Create3dSprite(static_cast<u8>(n), gfx_id, pal_id, x[n], y[n]);
 
     // 2. Add transform component
-    entity.add_component<TransformComponent>(Vec2f(x, y));
+    entity.add_component<TransformComponent>(Vec2f(x[n], y[n]));
 
     // 3. Add 3D Sprite component referencing real GFX and Palette IDs
     entity.add_component<SpriteComponent>(
@@ -191,6 +191,9 @@ void Game::process_input(void) {
   touchPosition touch;
   touchRead(&touch);
 
+  keys = static_cast<u16>(keys_held);
+  touchscreen = touch;
+
   // Handle Quit / Exit triggers:
   if (keys_pressed & KEY_START) {
     // this->scene_manager->stop_scene();
@@ -228,9 +231,6 @@ void Game::update(void) {
   // In fixed-point (20.12 format): ~68 units (1/60 * 4096)
   // If floating-point is needed:
   float delta_time = 1.0f / 60.0f;
-
-  // Update input hardware state (libnds):
-  scanKeys();
 
   // Update the engine systems:
   this->event_manager->reset();
@@ -276,10 +276,23 @@ void Game::temporary(void) {
   else {
     x[0] += ix;
 
-    if ((x[0] < 8) || (x[0] > 183)) ix = -ix;
-      y[0] += iy;
+    if (x[0] < 8) {
+      x[0] = 8;
+      ix = -ix;
+    } else if (x[0] > 183) {
+      x[0] = 183;
+      ix = -ix;
+    }
 
-    if ((y[0] < 8) || (y[0] > 119)) iy = -iy;
+    y[0] += iy;
+
+    if (y[0] < 8) {
+      y[0] = 8;
+      iy = -iy;
+    } else if (y[0] > 119) {
+      y[0] = 119;
+      iy = -iy;
+    }
   }
 
   NF_Move3dSprite(0, x[0], y[0]);
