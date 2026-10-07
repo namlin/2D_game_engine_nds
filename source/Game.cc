@@ -71,14 +71,14 @@ Game* Game::get_instance(void) {
 }
 
 void Game::init(void) {
-  // Initialize NitroFS first (this must happen before any file loads):
+  // Initialize NitroFS first:
   this->init_nitroFS();
 
-  // Set screen modes (Top screen = Mode 0 / 3D Engine, Bottom screen = Mode 0 / 2D Engine)
+  // Set screen modes:
   NF_Set3D(0, 0);  // Display 3D engine on Top Screen (0).
   NF_Set2D(1, 0);  // Display 2D engine on Bottom Screen (1).
 
-  // Setup text console on bottom screen without crashing display modes:
+  // Setup text console:
   consoleDemoInit();
 
   // Initialize OpenGL engine state for NFlib 3D Sprites:
@@ -86,46 +86,61 @@ void Game::init(void) {
   glViewport(0, 0, 255, 191);
   glMatrixMode(GL_PROJECTION);
   glLoadIdentity();
-  glOrthof32(0, 256, 192, 0, -1024, 1024);  // Set 2D orthographic projection for 3D sprites.
+  glOrthof32(0, 256, 192, 0, -1024, 1024);
   glMatrixMode(GL_MODELVIEW);
   glLoadIdentity();
 
   // Initialize tiled background system:
   NF_InitTiledBgBuffers();
-  NF_InitTiledBgSys(0);  // Top screen.
+  NF_InitTiledBgSys(0);
 
-  // Initialize 3D Sprite system and allocate slots;
+  // Initialize 3D Sprite system:
   NF_InitSpriteBuffers();
-  NF_Init3dSpriteSys();  // Allocate RAM structures for 3D sprites.
+  NF_Init3dSpriteSys();
 
-  // Load background files from NitroFS:
-  NF_LoadTiledBg("bg/nature", "bg3", 256, 256);
+  // Load assets into RAM/VRAM via AssetManager:
+  this->init_assets();
 
-  // Load sprite files from NitroFS:
-  NF_LoadSpriteGfx("sprite/blueball", 0, 64, 64);
-  NF_LoadSpritePal("sprite/blueball", 0);
+  // Retrieve slot IDs loaded by load_3d_sprite:
+  u16 gfx_id = this->asset_manager->get_gfx_id("blueball");
+  u16 pal_id = this->asset_manager->get_pal_id("blueball");
 
-  // Transfer sprites to VRAM:
-  NF_Vram3dSpriteGfx(0, 0, true);
-  NF_Vram3dSpritePal(0, 0);
-
-  // Create background:
+  // Instantiate background on Screen 0, Layer 3:
   NF_CreateTiledBg(0, 3, "bg3");
 
-  // Enable alpha blending for 3D sprites over background layers
+  // Enable alpha blending:
   REG_BLDCNT = BLEND_ALPHA
-               | BLEND_SRC_BG0
-               | BLEND_DST_BG1 | BLEND_DST_BG2 | BLEND_DST_BG3 | BLEND_DST_BACKDROP;
+             | BLEND_SRC_BG0
+             | BLEND_DST_BG1 | BLEND_DST_BG2 | BLEND_DST_BG3 | BLEND_DST_BACKDROP;
 
-  // Initialize positions and create 3D sprites:
+  // Initialize positions and instantiate 3D sprites in NFlib:
   for (size_t n = 0; n < MAXSPRITES; n++) {
-    x[n] = 128 - 32;
-    y[n] = 96 - 32;
+    Entity entity = this->registry->create_entity();
 
-    NF_Create3dSprite(n, 0, 0, x[n], y[n]);
+    s16 x = 128 - 32;
+    s16 y = 96 - 32;
+
+    // 1. Tell NFlib to instantiate the 3D sprite hardware object
+    // Signature: NF_Create3dSprite(sprite_slot, gfx_slot, pal_slot, x, y)
+    NF_Create3dSprite(static_cast<u8>(n), gfx_id, pal_id, x, y);
+
+    // 2. Add transform component
+    entity.add_component<TransformComponent>(Vec2f(x, y));
+
+    // 3. Add 3D Sprite component referencing real GFX and Palette IDs
+    entity.add_component<SpriteComponent>(
+      0,                     // Screen
+      static_cast<u8>(n),    // 3D Sprite hardware slot ID
+      gfx_id,                // Loaded GFX RAM/VRAM slot
+      pal_id,                // Loaded Palette RAM/VRAM slot
+      64,                    // Width
+      64,                    // Height
+      true,                  // is_3D
+      true                   // is_rotscale
+    );
   }
 
-  // Sort priorities (lower IDs rendered on top):
+  // Sort priorities:
   NF_Sort3dSprites();
 
   this->is_running = true;
@@ -140,6 +155,12 @@ void Game::init_nitroFS(void) {
   }
 
   NF_SetRootFolder("NITROFS");
+}
+
+void Game::init_assets(void) {
+  // (Loads files from NitroFS into RAM and transfers graphics/palettes to VRAM):
+  this->asset_manager->load_tiled_bg("bg3", "bg/nature", 256, 256);
+  this->asset_manager->load_3d_sprite("blueball", "sprite/blueball", 64, 64, 0, 0);
 }
 
 void Game::setup(void) {

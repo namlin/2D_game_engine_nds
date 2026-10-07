@@ -65,6 +65,8 @@ class Game {
 
   // --- Private Methods ---
   void init_nitroFS(void);
+  void init_assets(void);
+
   void process_input(void);
   void update(void);
   void render(void);

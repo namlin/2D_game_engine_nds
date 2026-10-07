@@ -157,7 +157,7 @@ DEPS		:= $(OBJS:.o=.d)
 # Targets
 # -------
 
-.PHONY: all clean dump dldipatch sdimage run
+.PHONY: all clean convert dump dldipatch sdimage run
 
 all: $(ROM)
 
@@ -281,6 +281,9 @@ $(SOURCES_S) $(SOURCES_C) $(SOURCES_CPP): $(HEADERS_ASSETS)
 # --------------------------------------
 
 -include $(DEPS)
+
+convert:
+	./assets/convert.sh
 
 run:
 	desmume 2D_game_engine_nds.nds

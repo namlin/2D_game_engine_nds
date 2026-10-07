@@ -48,6 +48,23 @@ class RenderSystem : public System {
       }
     }
   }
+
+  /*
+  void update(void) {
+    for (auto entity : this->get_entities()) {
+      auto& sprite = entity.get_component<SpriteComponent>();
+      auto& transform = entity.get_component<TransformComponent>();
+
+      if (sprite.is_3D) {
+        // Cast float position to signed 16-bit integers for NFlib:
+        s16 x = static_cast<s16>(transform.position.x);
+        s16 y = static_cast<s16>(transform.position.y);
+
+        // Move the 3D sprite slot inside NFlib's renderer
+        NF_Move3dSprite(sprite.gfx_id, x, y);
+      }
+    }
+  }*/
 };
 
 #endif  // RENDERSYSTEM_H

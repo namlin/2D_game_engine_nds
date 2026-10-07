@@ -9,10 +9,9 @@
 
 class AssetManager {
  private:
-  // Maps string IDs (e.g., "player") to NFlib Sprite Graphics Slot IDs (0-255):
   std::unordered_map<std::string, u16> sprite_gfx_slots;
-
-  // Tracks the current available slot index:
+  std::unordered_map<std::string, u16> sprite_gfx_ids;
+  std::unordered_map<std::string, u16> sprite_pal_ids;
   u16 next_available_slot;
 
  public:
@@ -20,21 +19,15 @@ class AssetManager {
   ~AssetManager(void);
 
   void clear_assets(void);
+  void add_sprite(const std::string& texture_id, const char* file_path, u16 width, u16 height);
+  u16 get_sprite_id(const std::string& id) const;
 
-  /**
-    * Loads a sprite graphics asset into VRAM/RAM using NFlib.
-    * @param file_path File name inside NitroFS (e.g., "sprite/player" for player.img/player.pal)
-    * @param texture_id Unique string identifier for this asset
-    * @param width Width of the sprite in pixels (e.g., 16, 32, 64)
-    * @param height Height of the sprite in pixels
-    */
-  void add_texture(const std::string& texture_id, const char* file_path, u16 width, u16 height);
+  void load_tiled_bg(const std::string& bg_id, const std::string& file_path, u16 width, u16 height);
+  void load_3d_sprite(const std::string& sprite_id, const std::string& file_path,
+                      u16 width, u16 height, u16 gfx_slot, u16 pal_slot);
 
-  /**
-    * Returns the NFlib graphics slot ID associated with the text ID.
-    * Returns 255 (invalid) if not found.
-    */
-  u16 get_texture_id(const std::string& id) const;
+  u16 get_gfx_id(const std::string& sprite_id) const;
+  u16 get_pal_id(const std::string& sprite_id) const;
 };
 
-#endif  // ASSETMANAGER_H
+#endif // ASSETMANAGER_H
