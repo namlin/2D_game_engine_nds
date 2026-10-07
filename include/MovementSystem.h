@@ -16,7 +16,7 @@ class MovementSystem : public System {
     this->require_component<TransformComponent>();
   }
 
-  ~MovementSystem(void);
+  ~MovementSystem(void) = default;
 
   void update(double delta_time) {
     for (auto entity : this->get_entities()) {

@@ -64,13 +64,13 @@ void AssetManager::load_tiled_bg(const std::string& bg_id,
 }
 
 void AssetManager::load_3d_sprite(const std::string& sprite_id, const std::string& file_path,
-                                  u16 width, u16 height, u16 gfx_slot, u16 pal_slot) {
+                                  u16 width, u16 height, u16 gfx_slot, u16 pal_slot, bool keepframes) {
   // Load sprite graphics and palette from NitroFS into RAM:
   NF_LoadSpriteGfx(file_path.c_str(), gfx_slot, width, height);
   NF_LoadSpritePal(file_path.c_str(), pal_slot);
 
   // Transfer graphics and palette from RAM into 3D VRAM engine:
-  NF_Vram3dSpriteGfx(gfx_slot, gfx_slot, true);
+  NF_Vram3dSpriteGfx(gfx_slot, gfx_slot, keepframes);
   NF_Vram3dSpritePal(pal_slot, pal_slot);
 
   // Store slot mapping IDs:

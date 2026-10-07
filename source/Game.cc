@@ -5,12 +5,6 @@ u32 global_frame_counter = 0;
 u16 keys = 0;
 touchPosition touchscreen = {};
 
-// Variables:
-// TODO: move this to another place.
-s16 x[MAXSPRITES];
-s16 y[MAXSPRITES];
-s16 ix = 4;
-s16 iy = 4;
 
 Game::Game(void) {
   this->asset_manager = new AssetManager();
@@ -125,7 +119,8 @@ void Game::init_assets(void) {
   NF_CreateTiledBg(0, 3, "bg3");
 
   // Sprites:
-  this->asset_manager->load_3d_sprite("Player_1", "sprite/Player_1", 64, 64, 0, 0);
+  this->asset_manager->load_3d_sprite("Player_1", "sprite/Player_1", 64, 64, 0, 0, false);
+  this->asset_manager->load_3d_sprite("Menace", "sprite/Menace", 32, 32, 1, 1, false);
 
   // sets up a transparency blend:
   // Enable alpha blending:
@@ -138,16 +133,56 @@ void Game::init_assets(void) {
 
 // Initialize positions and instantiate 3D sprites in NFlib:
 void Game::init_3D_sprites(void) {
-  //----------------------------------------------------------------------------
-  Entity player = this->registry->create_entity();
+  // 1. Player_1 (Slot 0):
+  u16 player_gfx_id = this->asset_manager->get_gfx_id("Player_1");
+  u16 player_pal_id = this->asset_manager->get_pal_id("Player_1");
+
+  s16 player_start_x = (SCREEN_WIDTH - PLAYER_WIDTH) / 2;
+  s16 player_start_y = (SCREEN_HEIGHT - PLAYER_HEIGHT) / 2;
 
   // Tell NFlib to instantiate the 3D sprite hardware object:
-  NF_Create3dSprite(0, 0, 0, 0, 0);
+  NF_Create3dSprite(0, player_gfx_id, player_pal_id, player_start_x, player_start_y);
 
-  player.add_component<TransformComponent>(Vec2f(0, 0));
-  player.add_component<SpriteComponent>(0, 0, 0, 0, 64, 64, true, true);
+  this->player = this->registry->create_entity();
+  this->player.add_component<TransformComponent>(Vec2f(player_start_x, player_start_y));
+  this->player.add_component<SpriteComponent>(
+    0,               // Screen (0 = Top Screen)
+    0,               // 3D Sprite hardware slot ID
+    player_gfx_id,   // Loaded GFX RAM/VRAM slot
+    player_pal_id,   // Loaded Palette RAM/VRAM slot
+    PLAYER_WIDTH,    // Width (64)
+    PLAYER_HEIGHT,   // Height (64)
+    true,            // is_3D
+    false            // is_rotscale
+  );
 
-  //----------------------------------------------------------------------------
+  // 2. Menace (Slot 1) positioned on the right side of the screen:
+  u16 menace_gfx_id = this->asset_manager->get_gfx_id("Menace");
+  u16 menace_pal_id = this->asset_manager->get_pal_id("Menace");
+
+  s16 menace_start_x = SCREEN_WIDTH - MENACE_WIDTH;          // 256 - 32 = 224 (right edge)
+  s16 menace_start_y = (SCREEN_HEIGHT - MENACE_HEIGHT) / 2;  // 80 (centered vertically)
+
+  NF_Create3dSprite(1, menace_gfx_id, menace_pal_id, menace_start_x, menace_start_y);
+
+  this->menace = this->registry->create_entity();
+  this->menace.add_component<TransformComponent>(Vec2f(menace_start_x, menace_start_y));
+  this->menace.add_component<SpriteComponent>(
+    0,               // Screen (0 = Top Screen)
+    1,               // 3D Sprite hardware slot ID
+    menace_gfx_id,   // Loaded GFX RAM/VRAM slot
+    menace_pal_id,   // Loaded Palette RAM/VRAM slot
+    MENACE_WIDTH,    // Width (32)
+    MENACE_HEIGHT,   // Height (32)
+    true,            // is_3D
+    false            // is_rotscale
+  );
+  this->menace.add_component<AnimationComponent>(
+    4,               // 4 frames (each 32x32)
+    8,               // Animation speed: switch frame every 8 frames
+    true             // Loop animation
+  );
+
   NF_Sort3dSprites();  // Sort priorities.
 }
 
@@ -166,6 +201,12 @@ void Game::setup(void) {
 
   // this->lua.open_libraries(sol::lib::base, sol::lib::math);  // TODO
   // this->registry->get_system<ScriptSystem>().create_lua_binding(this->lua);  // TODO
+
+  // Map keys:
+  this->controller_manager->add_action_key("Move Up", KEY_UP);
+  this->controller_manager->add_action_key("Move Down", KEY_DOWN);
+  this->controller_manager->add_action_key("Move Left", KEY_LEFT);
+  this->controller_manager->add_action_key("Move Right", KEY_RIGHT);
 }
 
 void Game::process_input(void) {
@@ -201,7 +242,7 @@ void Game::process_input(void) {
     this->controller_manager->set_mouse_position(touch.px, touch.py);
     this->controller_manager->set_mouse_button_down(KEY_TOUCH);
 
-    // Emit click event using touch pixel coordinates (px, py)
+    // Emit click event using touch pixel coordinates (px, py):
     // this->event_manager->emit_event<ClickEvent>(KEY_TOUCH, touch.px, touch.py);
   }
 
@@ -211,14 +252,44 @@ void Game::process_input(void) {
   }
 }
 
+void Game::update_player_input(void) {
+  if (!this->player.has_component<TransformComponent>()) {
+    return;
+  }
+
+  auto& transform = this->player.get_component<TransformComponent>();
+
+  // Apply movement based on D-pad input via ControllerManager and hardware keys:
+  if (this->controller_manager->is_action_activated("Move Left") || (keys & KEY_LEFT)) {
+    transform.position.x -= this->player_speed;
+  }
+  if (this->controller_manager->is_action_activated("Move Right") || (keys & KEY_RIGHT)) {
+    transform.position.x += this->player_speed;
+  }
+  if (this->controller_manager->is_action_activated("Move Up") || (keys & KEY_UP)) {
+    transform.position.y -= this->player_speed;
+  }
+  if (this->controller_manager->is_action_activated("Move Down") || (keys & KEY_DOWN)) {
+    transform.position.y += this->player_speed;
+  }
+
+  // Prevent sprite from moving outside screen limits (screen: 256x192, sprite: 64x64):
+  if (transform.position.x < 0) {
+    transform.position.x = 0;
+  } else if (transform.position.x > static_cast<s32>(SCREEN_WIDTH - PLAYER_WIDTH)) {
+    transform.position.x = static_cast<s32>(SCREEN_WIDTH - PLAYER_WIDTH);
+  }
+
+  if (transform.position.y < 0) {
+    transform.position.y = 0;
+  } else if (transform.position.y > static_cast<s32>(SCREEN_HEIGHT - PLAYER_HEIGHT)) {
+    transform.position.y = static_cast<s32>(SCREEN_HEIGHT - PLAYER_HEIGHT);
+  }
+}
+
 void Game::update(void) {
   // Increment global tick counter (used by AnimationSystem and timed events)
   global_frame_counter++;
-
-  // Fixed delta time for 60Hz NDS hardware (~0.016667 seconds)
-  // In fixed-point (20.12 format): ~68 units (1/60 * 4096)
-  // If floating-point is needed:
-  float delta_time = 1.0f / 60.0f;
 
   // Update the engine systems:
   this->event_manager->reset();
@@ -227,10 +298,13 @@ void Game::update(void) {
 
   this->registry->update();
 
+  // Handle player movement and boundary limits:
+  this->update_player_input();
+
   // this->registry->get_system<ScriptSystem>().update(this->lua);  // TODO
   this->registry->get_system<AnimationSystem>().update();
   this->registry->get_system<CollisionSystem>().update(*this->event_manager);
-  this->registry->get_system<MovementSystem>().update(delta_time);
+  this->registry->get_system<MovementSystem>().update(this->delta_time);
 
   // Push updated sprite transformations to OAM VRAM:
   NF_SpriteOamSet(0);  // Top screen OAM update.
@@ -258,6 +332,9 @@ void Game::render(void) {
 
   // Synchronize to frame refresh (~60 FPS VBlank interrupt):
   swiWaitForVBlank();
+
+  // Update animated 3D sprite graphics textures if needed:
+  NF_Update3dSpritesGfx();
 }
 
 void Game::run(void) {

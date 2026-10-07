@@ -12,14 +12,14 @@ void ControllerManager::clear(void) {
 }
 
 void ControllerManager::update(void) {
-  uint32_t keys_held = keysHeld();
+  u32 keys_held = keysHeld();
 
-  // Refresh active states for all registered action keys
+  // Refresh active states for all registered action keys:
   for (auto& entry : this->keys_down) {
     entry.second = (keys_held & entry.first) != 0;
   }
 
-  // Refresh active states for mouse/touch buttons
+  // Refresh active states for mouse/touch buttons:
   for (auto& entry : this->mouse_button_down) {
     entry.second = (keys_held & entry.first) != 0;
   }
@@ -33,11 +33,13 @@ void ControllerManager::add_action_key(const std::string& action, uint32_t key_m
 
 bool ControllerManager::is_action_activated(const std::string& action) const {
   auto name_it = this->action_key_name.find(action);
+
   if (name_it == this->action_key_name.end()) {
     return false;
   }
 
   auto key_it = this->keys_down.find(name_it->second);
+
   if (key_it != this->keys_down.end()) {
     return key_it->second;
   }

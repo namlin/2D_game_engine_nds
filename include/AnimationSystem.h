@@ -47,9 +47,12 @@ class AnimationSystem : public System {
       }
 
       // Update NFlib sprite hardware frame.
-      // sprite.screen: 0 (Top) or 1 (Bottom).
-      // sprite.id: NFlib allocated sprite ID (0 - 127 per screen).
-      NF_SpriteFrame(sprite.screen, sprite.id, animation.current_frame);
+      // 3D sprites use NF_Set3dSpriteFrame, 2D sprites use NF_SpriteFrame.
+      if (sprite.is_3D) {
+        NF_Set3dSpriteFrame(sprite.id, animation.current_frame);
+      } else {
+        NF_SpriteFrame(sprite.screen, sprite.id, animation.current_frame);
+      }
     }
   }
 };

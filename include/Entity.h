@@ -14,7 +14,7 @@ class Entity {
   Registry* registry = nullptr;
 
  public:
-  explicit Entity(size_t id) : id(id) {}
+  Entity(size_t id = 0) : id(id), registry(nullptr) {}
   size_t get_id(void) const;
   void delete_entity(void);
 

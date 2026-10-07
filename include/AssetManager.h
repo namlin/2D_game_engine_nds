@@ -24,7 +24,7 @@ class AssetManager {
 
   void load_tiled_bg(const std::string& bg_id, const std::string& file_path, u16 width, u16 height);
   void load_3d_sprite(const std::string& sprite_id, const std::string& file_path,
-                      u16 width, u16 height, u16 gfx_slot, u16 pal_slot);
+                      u16 width, u16 height, u16 gfx_slot, u16 pal_slot, bool keepframes = false);
 
   u16 get_gfx_id(const std::string& sprite_id) const;
   u16 get_pal_id(const std::string& sprite_id) const;

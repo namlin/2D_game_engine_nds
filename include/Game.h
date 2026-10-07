@@ -12,7 +12,7 @@
 #include "../include/Constants.h"
 #include "../include/AssetManager.h"
 #include "../include/ControllerManager.h"
-// #include "../include/EventManager.h"
+#include "../include/EventManager.h"
 
 // ECS:
 #include "../include/Component.h"
@@ -36,6 +36,8 @@
 #include "../include/RenderSystem.h"
 // #include "../include/ScriptSystem.h"
 
+#include "../include/ClickEvent.h"
+
 class Game {
  private:
   // --- Attributes ---
@@ -55,6 +57,15 @@ class Game {
 
   Registry* registry = nullptr;
 
+  Entity player;
+  Entity menace;
+  const s16 player_speed = 2;
+
+  // Fixed delta time for 60Hz NDS hardware (~0.016667 seconds)
+  // In fixed-point (20.12 format): ~68 units (1/60 * 4096)
+  // If floating-point is needed:
+  const float delta_time = 1.0f / 60.0f;
+
   // --- Singleton Encapsulation ---
   Game(void);
   ~Game(void);
@@ -67,6 +78,7 @@ class Game {
   void init_nitroFS(void);
   void init_assets(void);
   void init_3D_sprites(void);
+  void update_player_input(void);
 
   void process_input(void);
   void update(void);

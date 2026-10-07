@@ -14,6 +14,12 @@ const size_t EXTRA_SIZE = 100;
 // On NDS, 1 frame at 60 FPS takes ~0.01668 seconds.
 constexpr double TARGET_DELTA_TIME = 1.0 / 59.826;
 
+// Sprite dimensions (SCREEN_WIDTH and SCREEN_HEIGHT are defined in libnds):
+const uint16_t PLAYER_WIDTH = 64;
+const uint16_t PLAYER_HEIGHT = 64;
+const uint16_t MENACE_WIDTH = 32;
+const uint16_t MENACE_HEIGHT = 32;
+
 // Variables:
 extern u32 global_frame_counter ;
 

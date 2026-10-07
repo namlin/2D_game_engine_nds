@@ -1,5 +1,10 @@
+ifneq ($(wildcard /opt/blocksds/core),)
 export BLOCKSDS			?= /opt/blocksds/core
 export BLOCKSDSEXT		?= /opt/blocksds/external
+else
+export BLOCKSDS			?= /opt/wonderful/thirdparty/blocksds/core
+export BLOCKSDSEXT		?= /opt/wonderful/thirdparty/blocksds/external
+endif
 
 export WONDERFUL_TOOLCHAIN	?= /opt/wonderful
 ARM_NONE_EABI_PATH	?= $(WONDERFUL_TOOLCHAIN)/toolchain/gcc-arm-none-eabi/bin/
