@@ -66,6 +66,7 @@ class Game {
   // --- Private Methods ---
   void init_nitroFS(void);
   void init_assets(void);
+  void init_3D_sprites(void);
 
   void process_input(void);
   void update(void);
@@ -80,8 +81,6 @@ class Game {
   void setup(void);
   void run(void);
   void destroy(void);
-
-  void temporary(void);  // TODO: remove this.
 };
 
 #endif  // GAME_H

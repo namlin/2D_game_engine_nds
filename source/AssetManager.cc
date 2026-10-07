@@ -29,10 +29,11 @@ void AssetManager::clear_assets(void) {
   this->next_available_slot = 0;
 }
 
+/*
 void AssetManager::add_sprite(const std::string& texture_id,
                               const char* file_path, u16 width, u16 height) {
   if (this->next_available_slot >= 256) {
-    return; // Slot limit reached (NFlib supports max 256 RAM sprite slots)
+    return;  // Slot limit reached (NFlib supports max 256 RAM sprite slots).
   }
 
   u16 current_slot = this->next_available_slot;
@@ -45,7 +46,7 @@ void AssetManager::add_sprite(const std::string& texture_id,
   this->sprite_gfx_slots.emplace(texture_id, current_slot);
 
   this->next_available_slot++;
-}
+}*/
 
 u16 AssetManager::get_sprite_id(const std::string& id) const {
   auto it = this->sprite_gfx_slots.find(id);

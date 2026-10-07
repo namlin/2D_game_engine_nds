@@ -19,7 +19,7 @@ class AssetManager {
   ~AssetManager(void);
 
   void clear_assets(void);
-  void add_sprite(const std::string& texture_id, const char* file_path, u16 width, u16 height);
+  // void add_sprite(const std::string& texture_id, const char* file_path, u16 width, u16 height);
   u16 get_sprite_id(const std::string& id) const;
 
   void load_tiled_bg(const std::string& bg_id, const std::string& file_path, u16 width, u16 height);

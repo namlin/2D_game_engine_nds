@@ -101,48 +101,6 @@ void Game::init(void) {
   // Load assets into RAM/VRAM via AssetManager:
   this->init_assets();
 
-  // Retrieve slot IDs loaded by load_3d_sprite:
-  u16 gfx_id = this->asset_manager->get_gfx_id("blueball");
-  u16 pal_id = this->asset_manager->get_pal_id("blueball");
-
-  // Instantiate background on Screen 0, Layer 3:
-  NF_CreateTiledBg(0, 3, "bg3");
-
-  // Enable alpha blending:
-  REG_BLDCNT = BLEND_ALPHA
-             | BLEND_SRC_BG0
-             | BLEND_DST_BG1 | BLEND_DST_BG2 | BLEND_DST_BG3 | BLEND_DST_BACKDROP;
-
-  // Initialize positions and instantiate 3D sprites in NFlib:
-  for (size_t n = 0; n < MAXSPRITES; n++) {
-    Entity entity = this->registry->create_entity();
-
-    x[n] = 128 - 32;
-    y[n] = 96 - 32;
-
-    // 1. Tell NFlib to instantiate the 3D sprite hardware object
-    // Signature: NF_Create3dSprite(sprite_slot, gfx_slot, pal_slot, x, y)
-    NF_Create3dSprite(static_cast<u8>(n), gfx_id, pal_id, x[n], y[n]);
-
-    // 2. Add transform component
-    entity.add_component<TransformComponent>(Vec2f(x[n], y[n]));
-
-    // 3. Add 3D Sprite component referencing real GFX and Palette IDs
-    entity.add_component<SpriteComponent>(
-      0,                     // Screen
-      static_cast<u8>(n),    // 3D Sprite hardware slot ID
-      gfx_id,                // Loaded GFX RAM/VRAM slot
-      pal_id,                // Loaded Palette RAM/VRAM slot
-      64,                    // Width
-      64,                    // Height
-      true,                  // is_3D
-      true                   // is_rotscale
-    );
-  }
-
-  // Sort priorities:
-  NF_Sort3dSprites();
-
   this->is_running = true;
 }
 
@@ -159,8 +117,38 @@ void Game::init_nitroFS(void) {
 
 void Game::init_assets(void) {
   // (Loads files from NitroFS into RAM and transfers graphics/palettes to VRAM):
+
+  // Backgrounds:
   this->asset_manager->load_tiled_bg("bg3", "bg/nature", 256, 256);
-  this->asset_manager->load_3d_sprite("blueball", "sprite/blueball", 64, 64, 0, 0);
+
+  // Instantiate background on Screen 0, Layer 3:
+  NF_CreateTiledBg(0, 3, "bg3");
+
+  // Sprites:
+  this->asset_manager->load_3d_sprite("Player_1", "sprite/Player_1", 64, 64, 0, 0);
+
+  // sets up a transparency blend:
+  // Enable alpha blending:
+  REG_BLDCNT = BLEND_ALPHA
+             | BLEND_SRC_BG0
+             | BLEND_DST_BG1 | BLEND_DST_BG2 | BLEND_DST_BG3 | BLEND_DST_BACKDROP;
+
+  this->init_3D_sprites();
+}
+
+// Initialize positions and instantiate 3D sprites in NFlib:
+void Game::init_3D_sprites(void) {
+  //----------------------------------------------------------------------------
+  Entity player = this->registry->create_entity();
+
+  // Tell NFlib to instantiate the 3D sprite hardware object:
+  NF_Create3dSprite(0, 0, 0, 0, 0);
+
+  player.add_component<TransformComponent>(Vec2f(0, 0));
+  player.add_component<SpriteComponent>(0, 0, 0, 0, 64, 64, true, true);
+
+  //----------------------------------------------------------------------------
+  NF_Sort3dSprites();  // Sort priorities.
 }
 
 void Game::setup(void) {
@@ -183,9 +171,9 @@ void Game::setup(void) {
 void Game::process_input(void) {
   // Scan hardware keys:
   scanKeys();
-  uint32_t keys_pressed  = keysDown();
+  uint32_t keys_pressed = keysDown();
   uint32_t keys_released = keysUp();
-  uint32_t keys_held     = keysHeld();
+  uint32_t keys_held = keysHeld();
 
   // Read raw touch coordinates directly from libnds:
   touchPosition touch;
@@ -247,55 +235,6 @@ void Game::update(void) {
   // Push updated sprite transformations to OAM VRAM:
   NF_SpriteOamSet(0);  // Top screen OAM update.
   NF_SpriteOamSet(1);  // Bottom screen OAM update.
-
-  this->temporary();  // TODO: remove this from here.
-}
-
-// TODO: move this to another place.
-void Game::temporary(void) {
-    // Move tail sprites:
-  for (int n = MAXSPRITES - 1; n > 0; n--) {
-    x[n] = x[n - 1];
-    y[n] = y[n - 1];
-
-    NF_Blend3dSprite(n, n + 1, 31 - (n * 4));
-    NF_Move3dSprite(n, x[n], y[n]);
-  }
-
-  // Move main sprite via touch or automatic velocity:
-  if (keys & KEY_TOUCH) {
-    x[0] = touchscreen.px - 32;
-    y[0] = touchscreen.py - 32;
-
-    if (x[0] < 8)   x[0] = 8;
-    if (x[0] > 183) x[0] = 183;
-    if (y[0] < 8)   y[0] = 8;
-    if (y[0] > 119) y[0] = 119;
-  }
-
-  else {
-    x[0] += ix;
-
-    if (x[0] < 8) {
-      x[0] = 8;
-      ix = -ix;
-    } else if (x[0] > 183) {
-      x[0] = 183;
-      ix = -ix;
-    }
-
-    y[0] += iy;
-
-    if (y[0] < 8) {
-      y[0] = 8;
-      iy = -iy;
-    } else if (y[0] > 119) {
-      y[0] = 119;
-      iy = -iy;
-    }
-  }
-
-  NF_Move3dSprite(0, x[0], y[0]);
 }
 
 void Game::render(void) {
@@ -306,7 +245,6 @@ void Game::render(void) {
   // TODO: include the asset manager as a parameter.
   // this->registry->get_system<RenderTextSystem>().update();  // TODO
 
-  // Draw 3D sprites:
   NF_Draw3dSprites();
   glFlush(0);
 
