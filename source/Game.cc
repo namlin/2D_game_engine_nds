@@ -113,7 +113,7 @@ void Game::init_assets(void) {
   // (Loads files from NitroFS into RAM and transfers graphics/palettes to VRAM):
 
   // Backgrounds:
-  this->asset_manager->load_tiled_bg("bg3", "bg/nature", 256, 256);
+  this->asset_manager->load_tiled_bg("bg3", "bg/Stage_1-1", 256, 256);
 
   // Instantiate background on Screen 0, Layer 3:
   NF_CreateTiledBg(0, 3, "bg3");
@@ -123,7 +123,7 @@ void Game::init_assets(void) {
   this->asset_manager->load_3d_sprite("Menace", "sprite/Menace", 32, 32, 1, 1, false);
   this->asset_manager->load_3d_sprite("Player_Bullet", "sprite/Player_Bullet", BULLET_WIDTH, BULLET_HEIGHT, 2, 2, false);
 
-  // sets up a transparency blend:
+  // Set up a transparency blend:
   // Enable alpha blending:
   REG_BLDCNT = BLEND_ALPHA
              | BLEND_SRC_BG0
@@ -140,13 +140,17 @@ void Game::init_3D_sprites(void) {
   u16 player_gfx_id = this->asset_manager->get_gfx_id("Player_1");
   u16 player_pal_id = this->asset_manager->get_pal_id("Player_1");
 
-  s16 player_start_x = (SCREEN_WIDTH - PLAYER_WIDTH) / 2;
-  s16 player_start_y = (SCREEN_HEIGHT - PLAYER_HEIGHT) / 2;
+  // s16 player_start_x = (SCREEN_WIDTH - PLAYER_WIDTH) / 2;
+  // s16 player_start_y = (SCREEN_HEIGHT - PLAYER_HEIGHT) / 2;
+  s16 player_start_x = 0;
+  s16 player_start_y = 0;
 
   // Tell NFlib to instantiate the 3D sprite hardware object:
-  NF_Create3dSprite(0, player_gfx_id, player_pal_id, player_start_x, player_start_y);
+  // NF_Create3dSprite(0, player_gfx_id, player_pal_id, player_start_x, player_start_y);
+  NF_Create3dSprite(0, player_gfx_id, player_pal_id, 100, 100);
 
   this->player = this->registry->create_entity();
+  this->player.add_component<AnimationComponent>(2, 8, true);
   this->player.add_component<TransformComponent>(Vec2f(player_start_x, player_start_y));
   this->player.add_component<SpriteComponent>(
     0,               // Screen (0 = Top Screen)
@@ -161,18 +165,22 @@ void Game::init_3D_sprites(void) {
 
   // Initialize pool of available 3D sprite slots for Menaces (slots 1 to 10):
   this->free_menace_slots.clear();
+
   for (u8 slot = 1; slot <= 10; slot++) {
     this->free_menace_slots.push_back(slot);
   }
+
   this->active_menaces.clear();
-  this->menace_spawn_timer = 20; // Spawn first enemy shortly after start
+  this->menace_spawn_timer = 20;  // Spawn first enemy shortly after start.
   this->menaces_defeated_count = 0;
 
   // Initialize pool of available 3D sprite slots for bullets (slots 11 to 40):
   this->free_bullet_slots.clear();
+
   for (u8 slot = 11; slot <= 40; slot++) {
     this->free_bullet_slots.push_back(slot);
   }
+
   this->active_bullets.clear();
 
   NF_Sort3dSprites();  // Sort priorities.
@@ -199,7 +207,7 @@ void Game::setup(void) {
   this->controller_manager->add_action_key("Move Down", KEY_DOWN);
   this->controller_manager->add_action_key("Move Left", KEY_LEFT);
   this->controller_manager->add_action_key("Move Right", KEY_RIGHT);
-  this->controller_manager->add_action_key("Shoot", KEY_A | KEY_B | KEY_Y);
+  this->controller_manager->add_action_key("Shoot", KEY_Y);
 }
 
 void Game::process_input(void) {
@@ -256,12 +264,15 @@ void Game::update_player_input(void) {
   if (this->controller_manager->is_action_activated("Move Left") || (keys & KEY_LEFT)) {
     transform.position.x -= this->player_speed;
   }
+
   if (this->controller_manager->is_action_activated("Move Right") || (keys & KEY_RIGHT)) {
     transform.position.x += this->player_speed;
   }
+
   if (this->controller_manager->is_action_activated("Move Up") || (keys & KEY_UP)) {
     transform.position.y -= this->player_speed;
   }
+
   if (this->controller_manager->is_action_activated("Move Down") || (keys & KEY_DOWN)) {
     transform.position.y += this->player_speed;
   }
@@ -269,13 +280,17 @@ void Game::update_player_input(void) {
   // Prevent sprite from moving outside screen limits (screen: 256x192, sprite: 64x64):
   if (transform.position.x < 0) {
     transform.position.x = 0;
-  } else if (transform.position.x > static_cast<s32>(SCREEN_WIDTH - PLAYER_WIDTH)) {
+  }
+
+  else if (transform.position.x > static_cast<s32>(SCREEN_WIDTH - PLAYER_WIDTH)) {
     transform.position.x = static_cast<s32>(SCREEN_WIDTH - PLAYER_WIDTH);
   }
 
   if (transform.position.y < 0) {
     transform.position.y = 0;
-  } else if (transform.position.y > static_cast<s32>(SCREEN_HEIGHT - PLAYER_HEIGHT)) {
+  }
+
+  else if (transform.position.y > static_cast<s32>(SCREEN_HEIGHT - PLAYER_HEIGHT)) {
     transform.position.y = static_cast<s32>(SCREEN_HEIGHT - PLAYER_HEIGHT);
   }
 
@@ -284,10 +299,10 @@ void Game::update_player_input(void) {
     this->shoot_cooldown--;
   }
 
-  if (this->controller_manager->is_action_activated("Shoot") || (keys & (KEY_A | KEY_B | KEY_Y))) {
+  if (this->controller_manager->is_action_activated("Shoot") || (keys & (KEY_Y))) {
     if (this->shoot_cooldown == 0) {
       this->shoot_bullet();
-      this->shoot_cooldown = 12; // Rate limit between shots (~5 shots/sec)
+      this->shoot_cooldown = 12;  // Rate limit between shots (~5 shots/sec).
     }
   }
 }
@@ -310,8 +325,8 @@ void Game::shoot_bullet(void) {
   u16 bullet_pal_id = this->asset_manager->get_pal_id("Player_Bullet");
 
   // Spawn bullet in front of the player ship:
-  s16 bullet_start_x = player_transform.position.x + PLAYER_WIDTH - 8;
-  s16 bullet_start_y = player_transform.position.y + (PLAYER_HEIGHT / 2) - (BULLET_HEIGHT / 2);
+  s16 bullet_start_x = player_transform.position.x + 34;
+  s16 bullet_start_y = player_transform.position.y + (PLAYER_HEIGHT - 49);
 
   NF_Create3dSprite(slot, bullet_gfx_id, bullet_pal_id, bullet_start_x, bullet_start_y);
 
@@ -328,11 +343,13 @@ void Game::shoot_bullet(void) {
     true,            // is_3D
     false            // is_rotscale
   );
+
   bullet.add_component<AnimationComponent>(
     2,               // 2 frames
     8,               // Switch frame every 8 frames
     true             // Loop animation
   );
+
   bullet.add_component<CircleColliderComponent>(4, BULLET_WIDTH, BULLET_HEIGHT);
   bullet.add_component<ProjectileComponent>(20, true);
 
@@ -501,22 +518,24 @@ void Game::update_menaces(void) {
 
 void Game::update_ui(void) {
   static u32 last_update_tick = 0;
+
   if (global_frame_counter - last_update_tick < 5) {
     return;
   }
+
   last_update_tick = global_frame_counter;
 
-  printf("\x1b[1;2H================================");
+  printf("\x1b[1;2H==============================");
   printf("\x1b[2;2H     2D GAME ENGINE (NDS)       ");
-  printf("\x1b[3;2H================================");
+  printf("\x1b[3;2H==============================");
   printf("\x1b[5;2HControls:");
   printf("\x1b[6;4H- D-Pad : Move Player");
-  printf("\x1b[7;4H- A/B/Y : Shoot Bullet");
-  printf("\x1b[9;2H--------------------------------");
+  printf("\x1b[7;4H- Y : Shoot Bullet");
+  printf("\x1b[9;2H------------------------------");
   printf("\x1b[10;2HActive Menaces : %2d / %2d      ", static_cast<int>(this->active_menaces.size()), static_cast<int>(MAX_MENACES));
   printf("\x1b[11;2HDefeated Score : %4lu           ", this->menaces_defeated_count);
   printf("\x1b[12;2HActive Bullets : %2d            ", static_cast<int>(this->active_bullets.size()));
-  printf("\x1b[14;2HStatus: %s", this->active_menaces.empty() ? "SCANNING AREA... " : "SWARM INCOMING! ");
+  printf("\x1b[12;2HFrame: %2d            ", static_cast<int>(global_frame_counter));
 }
 
 void Game::update(void) {

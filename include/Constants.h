@@ -4,7 +4,7 @@
 #include <nds.h>
 #include <cstdint>
 
-const uint8_t FPS = 30;
+const uint8_t FPS = 60;
 const uint16_t MILLISECS_PER_FRAME = 1000 / FPS;
 const size_t MAXSPRITES = 8;
 const size_t MAX_COMPONENTS = 64;
@@ -17,8 +17,10 @@ constexpr double TARGET_DELTA_TIME = 1.0 / 59.826;
 // Sprite dimensions (SCREEN_WIDTH and SCREEN_HEIGHT are defined in libnds):
 const uint16_t PLAYER_WIDTH = 64;
 const uint16_t PLAYER_HEIGHT = 64;
+
 const uint16_t MENACE_WIDTH = 32;
 const uint16_t MENACE_HEIGHT = 32;
+
 const uint16_t BULLET_WIDTH = 8;
 const uint16_t BULLET_HEIGHT = 8;
 
