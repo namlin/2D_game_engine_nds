@@ -60,15 +60,15 @@ class CollisionSystem : public System {
   }
 
   bool check_circular_collision(s32 a_radius, s32 b_radius, Vec2f a_position, Vec2f b_position) {
-    // Calculate delta distance:
-    s32 dx = (a_position.x - b_position.x) >> 12; // Shift down to integer pixels to prevent 64-bit overflow on square
-    s32 dy = (a_position.y - b_position.y) >> 12;
+    // Calculate delta distance in pixels:
+    s32 dx = a_position.x - b_position.x;
+    s32 dy = a_position.y - b_position.y;
 
     // Squared distance between centers:
     s32 dist_sq = (dx * dx) + (dy * dy);
 
-    // Sum of radii (converted to integer pixels) squared:
-    s32 radii_sum = (a_radius >> 12) + (b_radius >> 12);
+    // Sum of radii squared:
+    s32 radii_sum = a_radius + b_radius;
     s32 radii_sum_sq = radii_sum * radii_sum;
 
     return radii_sum_sq >= dist_sq;

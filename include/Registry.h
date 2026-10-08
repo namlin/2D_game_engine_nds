@@ -58,6 +58,10 @@ class Registry {
   void add_entity_to_systems(Entity entity);
   void remove_entity_from_systems(Entity entity);
 
+  bool is_entity_to_remove(Entity entity) const {
+    return this->entities_to_remove.find(entity) != this->entities_to_remove.end();
+  }
+
  private:
   size_t total_entities = 0;
   std::vector<IPool*> entries;

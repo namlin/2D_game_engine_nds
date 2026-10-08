@@ -23,6 +23,9 @@
 // Components:
 #include "../include/AnimationComponent.h"
 #include "../include/CircleColliderComponent.h"
+#include "../include/EnemyComponent.h"
+#include "../include/HealthComponent.h"
+#include "../include/ProjectileComponent.h"
 #include "../include/RigidBodyComponent.h"
 // #include "../include/ScriptComponent.h"
 #include "../include/SpriteComponent.h"
@@ -58,8 +61,19 @@ class Game {
   Registry* registry = nullptr;
 
   Entity player;
-  Entity menace;
   const s16 player_speed = 2;
+
+  // Menace enemy management:
+  static constexpr size_t MAX_MENACES = 6;
+  std::vector<u8> free_menace_slots;
+  std::vector<Entity> active_menaces;
+  u16 menace_spawn_timer = 0;
+  u32 menaces_defeated_count = 0;
+
+  // Bullet management:
+  std::vector<u8> free_bullet_slots;
+  std::vector<Entity> active_bullets;
+  u8 shoot_cooldown = 0;
 
   // Fixed delta time for 60Hz NDS hardware (~0.016667 seconds)
   // In fixed-point (20.12 format): ~68 units (1/60 * 4096)
@@ -79,6 +93,11 @@ class Game {
   void init_assets(void);
   void init_3D_sprites(void);
   void update_player_input(void);
+  void shoot_bullet(void);
+  void update_bullets(void);
+  void spawn_menace(void);
+  void update_menaces(void);
+  void update_ui(void);
 
   void process_input(void);
   void update(void);

@@ -49,7 +49,9 @@ class AnimationSystem : public System {
       // Update NFlib sprite hardware frame.
       // 3D sprites use NF_Set3dSpriteFrame, 2D sprites use NF_SpriteFrame.
       if (sprite.is_3D) {
-        NF_Set3dSpriteFrame(sprite.id, animation.current_frame);
+        if (sprite.id < NF_3DSPRITES && NF_3DSPRITE[sprite.id].inuse) {
+          NF_Set3dSpriteFrame(sprite.id, animation.current_frame);
+        }
       } else {
         NF_SpriteFrame(sprite.screen, sprite.id, animation.current_frame);
       }

@@ -17,6 +17,7 @@ class Entity {
   Entity(size_t id = 0) : id(id), registry(nullptr) {}
   size_t get_id(void) const;
   void delete_entity(void);
+  bool is_alive(void) const;
 
   bool operator==(const Entity& other) const { return id == other.id; }
   bool operator!=(const Entity& other) const { return id != other.id; }

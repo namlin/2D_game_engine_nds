@@ -1,4 +1,5 @@
 #include "../include/Registry.h"
+#include "../include/SpriteComponent.h"
 
 Registry::Registry(void) {}
 
@@ -68,6 +69,18 @@ void Registry::update(void) {
 
   for (auto entity : this->entities_to_remove) {
     this->remove_entity_from_systems(entity);
+
+    // Clean up hardware sprite if the entity had one:
+    if (this->has_component<SpriteComponent>(entity)) {
+      const auto& sprite = this->get_component<SpriteComponent>(entity);
+      if (sprite.is_3D) {
+        if (sprite.id < NF_3DSPRITES && NF_3DSPRITE[sprite.id].inuse) {
+          NF_Delete3dSprite(sprite.id);
+        }
+      } else {
+        NF_DeleteSprite(sprite.screen, sprite.id);
+      }
+    }
 
     // Set the whole bitset to 0:
     this->entity_component_signatures[entity.get_id()].reset();

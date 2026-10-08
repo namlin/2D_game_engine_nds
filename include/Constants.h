@@ -19,6 +19,8 @@ const uint16_t PLAYER_WIDTH = 64;
 const uint16_t PLAYER_HEIGHT = 64;
 const uint16_t MENACE_WIDTH = 32;
 const uint16_t MENACE_HEIGHT = 32;
+const uint16_t BULLET_WIDTH = 8;
+const uint16_t BULLET_HEIGHT = 8;
 
 // Variables:
 extern u32 global_frame_counter ;
