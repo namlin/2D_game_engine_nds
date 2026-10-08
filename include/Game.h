@@ -64,6 +64,8 @@ class Game {
   bool is_running = false;
   bool is_paused = false;
 
+  int bgm_channel = -1;
+
   AssetManager* asset_manager = nullptr;
   EventManager* event_manager = nullptr;
 

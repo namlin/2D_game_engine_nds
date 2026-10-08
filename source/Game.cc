@@ -92,6 +92,10 @@ void Game::init(void) {
   NF_InitSpriteBuffers();
   NF_Init3dSpriteSys();
 
+  // Initialize sound hardware and NFlib raw sound buffers:
+  soundEnable();
+  NF_InitRawSoundBuffers();
+
   // Load assets into RAM/VRAM via AssetManager:
   this->init_assets();
 
@@ -147,6 +151,9 @@ void Game::init_assets(void) {
   REG_BLDCNT = BLEND_ALPHA
              | BLEND_SRC_BG0
              | BLEND_DST_BG1 | BLEND_DST_BG2 | BLEND_DST_BG3 | BLEND_DST_BACKDROP;
+
+  // Load gameplay BGM (11025 Hz, 8-bit signed PCM mono, fits in 256 KB buffer):
+  NF_LoadRawSound("bgm/Samurai_v1", 0, 11025, 0);
 
   this->init_3D_sprites();
 }
@@ -273,6 +280,13 @@ void Game::start_game(void) {
 
   consoleClear();
 
+  // Start gameplay BGM playback (looping from start):
+  if (this->bgm_channel >= 0) {
+    soundKill(this->bgm_channel);
+    this->bgm_channel = -1;
+  }
+  this->bgm_channel = static_cast<int>(NF_PlayRawSound(0, 110, 64, true, 0));
+
   this->state = GameState::PLAYING;
 }
 
@@ -315,6 +329,12 @@ void Game::return_to_title(void) {
   this->active_bullets.clear();
 
   this->registry->update();
+
+  // Stop gameplay BGM when returning to title screen:
+  if (this->bgm_channel >= 0) {
+    soundKill(this->bgm_channel);
+    this->bgm_channel = -1;
+  }
 
   consoleClear();
 }
@@ -402,6 +422,13 @@ void Game::process_input(void) {
   // During Gameplay: START button pauses / unpauses the game:
   if (keys_pressed & KEY_START) {
     this->is_paused = !this->is_paused;
+    if (this->bgm_channel >= 0) {
+      if (this->is_paused) {
+        soundPause(this->bgm_channel);
+      } else {
+        soundResume(this->bgm_channel);
+      }
+    }
     return;
   }
 
@@ -853,6 +880,12 @@ void Game::run(void) {
 }
 
 void Game::destroy(void) {
+  if (this->bgm_channel >= 0) {
+    soundKill(this->bgm_channel);
+    this->bgm_channel = -1;
+  }
+  NF_UnloadRawSound(0);
+
   if (this->asset_manager != nullptr) {
     this->asset_manager->clear_assets();
   }
