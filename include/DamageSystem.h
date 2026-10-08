@@ -3,6 +3,7 @@
 
 #include "CircleColliderComponent.h"
 #include "CollisionEvent.h"
+#include "EnemyComponent.h"
 #include "EventManager.h"
 #include "HealthComponent.h"
 #include "ProjectileComponent.h"
@@ -24,17 +25,38 @@ class DamageSystem : public System {
 
     // Check if 'a' is a projectile and 'b' has health:
     if (a.has_component<ProjectileComponent>() && b.has_component<HealthComponent>()) {
-      apply_projectile_damage(a, b);
+      const auto& proj = a.get_component<ProjectileComponent>();
+      if (proj.is_friendly && b.has_component<EnemyComponent>()) {
+        apply_projectile_damage(a, b);
+        return;
+      }
+      if (!proj.is_friendly && !b.has_component<EnemyComponent>()) {
+        apply_projectile_damage(a, b);
+        return;
+      }
       return;
     }
 
     // Check if 'b' is a projectile and 'a' has health:
     if (b.has_component<ProjectileComponent>() && a.has_component<HealthComponent>()) {
-      apply_projectile_damage(b, a);
+      const auto& proj = b.get_component<ProjectileComponent>();
+      if (proj.is_friendly && a.has_component<EnemyComponent>()) {
+        apply_projectile_damage(b, a);
+        return;
+      }
+      if (!proj.is_friendly && !a.has_component<EnemyComponent>()) {
+        apply_projectile_damage(b, a);
+        return;
+      }
       return;
     }
 
-    // Fallback: If neither has ProjectileComponent, apply legacy behavior
+    // Ignore collisions between two enemies:
+    if (a.has_component<EnemyComponent>() && b.has_component<EnemyComponent>()) {
+      return;
+    }
+
+    // Fallback: If neither has ProjectileComponent (e.g. enemy vs player):
     if (!a.has_component<ProjectileComponent>() && !b.has_component<ProjectileComponent>()) {
       a.delete_entity();
       b.delete_entity();

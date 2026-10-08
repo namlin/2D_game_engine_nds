@@ -41,10 +41,18 @@
 
 #include "../include/ClickEvent.h"
 
+enum class GameState {
+  TITLE,
+  PLAYING
+};
+
 class Game {
  private:
   // --- Attributes ---
   inline static Game* instance;
+
+  GameState state = GameState::TITLE;
+  int player_lives = 1;
 
   uint8_t window_width = 255;
   uint8_t window_height = 192;
@@ -54,6 +62,7 @@ class Game {
   uint16_t millisecs_previous_frame = 0;
 
   bool is_running = false;
+  bool is_paused = false;
 
   AssetManager* asset_manager = nullptr;
   EventManager* event_manager = nullptr;
@@ -77,6 +86,12 @@ class Game {
 
   // Background scrolling:
   s32 bg_buildings_scroll_x = 0;
+  s32 bg_buildings_last_chunk = 0;
+  static constexpr s32 BUILDINGS_TOTAL_WIDTH = 1024;
+  static constexpr s32 BUILDINGS_CHUNK_WIDTH = 256;
+  static constexpr s32 BUILDINGS_TOTAL_CHUNKS = BUILDINGS_TOTAL_WIDTH / BUILDINGS_CHUNK_WIDTH;
+  s32 bg_front_beam_scroll_x = 0;
+  const s32 front_beam_speed = 3;
 
   // Fixed delta time for 60Hz NDS hardware (~0.016667 seconds)
   // In fixed-point (20.12 format): ~68 units (1/60 * 4096)
@@ -95,12 +110,16 @@ class Game {
   void init_nitroFS(void);
   void init_assets(void);
   void init_3D_sprites(void);
+  void start_game(void);
+  void return_to_title(void);
+  void spawn_player(void);
   void update_player_input(void);
   void shoot_bullet(void);
   void update_bullets(void);
   void spawn_menace(void);
   void update_menaces(void);
   void update_ui(void);
+  void update_title_ui(void);
 
   void process_input(void);
   void update(void);

@@ -95,6 +95,9 @@ void Game::init(void) {
   // Load assets into RAM/VRAM via AssetManager:
   this->init_assets();
 
+  // Start on Title Screen (top screen black):
+  this->return_to_title();
+
   this->is_running = true;
 }
 
@@ -114,13 +117,25 @@ void Game::init_assets(void) {
 
   // Backgrounds:
   this->asset_manager->load_tiled_bg("bg3", "bg/Stage_1-1", 256, 256);
-  this->asset_manager->load_tiled_bg("buildings_1", "bg/buildings_1", 512, 256);
+  this->asset_manager->load_tiled_bg("buildings", "bg/buildings", 512, 256);
+  this->asset_manager->load_tiled_bg("Front_Beam", "bg/Front_Beam", 256, 256);
 
   // Instantiate background on Screen 0, Layer 3 (Far background):
   NF_CreateTiledBg(0, 3, "bg3");
 
-  // Instantiate buildings on Screen 0, Layer 2 (Midground):
-  NF_CreateTiledBg(0, 2, "buildings_1");
+  // Instantiate buildings on Screen 0, Layer 2 (Midground 512x256 hardware buffer):
+  NF_CreateTiledBg(0, 2, "buildings");
+
+  // Instantiate Front_Beam on Screen 0, Layer 1 (Foreground):
+  NF_CreateTiledBg(0, 1, "Front_Beam");
+
+  // Adjust layer priorities so Front_Beam has highest priority (in front of all visual elements):
+  // Layer 1 (Front_Beam): Priority 0 (front-most)
+  // Layer 0 (3D Sprites / Player / Enemies / Bullets): Priority 1
+  // Layer 2 (buildings): Priority 2
+  // Layer 3 (bg3): Priority 3
+  REG_BG1CNT = (REG_BG1CNT & ~3) | BG_PRIORITY_0;
+  REG_BG0CNT = (REG_BG0CNT & ~3) | BG_PRIORITY_1;
 
   // Sprites:
   this->asset_manager->load_3d_sprite("Player_1", "sprite/Player_1", 64, 64, 0, 0, false);
@@ -139,33 +154,6 @@ void Game::init_assets(void) {
 // Initialize positions and instantiate 3D sprites in NFlib:
 void Game::init_3D_sprites(void) {
   srand(0x1337);
-
-  // 1. Player_1 (Slot 0):
-  u16 player_gfx_id = this->asset_manager->get_gfx_id("Player_1");
-  u16 player_pal_id = this->asset_manager->get_pal_id("Player_1");
-
-  // s16 player_start_x = (SCREEN_WIDTH - PLAYER_WIDTH) / 2;
-  // s16 player_start_y = (SCREEN_HEIGHT - PLAYER_HEIGHT) / 2;
-  s16 player_start_x = 0;
-  s16 player_start_y = 0;
-
-  // Tell NFlib to instantiate the 3D sprite hardware object:
-  // NF_Create3dSprite(0, player_gfx_id, player_pal_id, player_start_x, player_start_y);
-  NF_Create3dSprite(0, player_gfx_id, player_pal_id, 100, 100);
-
-  this->player = this->registry->create_entity();
-  this->player.add_component<AnimationComponent>(2, 8, true);
-  this->player.add_component<TransformComponent>(Vec2f(player_start_x, player_start_y));
-  this->player.add_component<SpriteComponent>(
-    0,               // Screen (0 = Top Screen)
-    0,               // 3D Sprite hardware slot ID
-    player_gfx_id,   // Loaded GFX RAM/VRAM slot
-    player_pal_id,   // Loaded Palette RAM/VRAM slot
-    PLAYER_WIDTH,    // Width (64)
-    PLAYER_HEIGHT,   // Height (64)
-    true,            // is_3D
-    false            // is_rotscale
-  );
 
   // Initialize pool of available 3D sprite slots for Menaces (slots 1 to 10):
   this->free_menace_slots.clear();
@@ -188,6 +176,176 @@ void Game::init_3D_sprites(void) {
   this->active_bullets.clear();
 
   NF_Sort3dSprites();  // Sort priorities.
+}
+
+void Game::spawn_player(void) {
+  if (this->player.is_alive()) {
+    this->player.delete_entity();
+    this->registry->update();
+  }
+
+  u16 player_gfx_id = this->asset_manager->get_gfx_id("Player_1");
+  u16 player_pal_id = this->asset_manager->get_pal_id("Player_1");
+
+  s16 player_start_x = 20;
+  s16 player_start_y = (SCREEN_HEIGHT - PLAYER_HEIGHT) / 2;
+
+  if (NF_3DSPRITE[0].inuse) {
+    NF_Delete3dSprite(0);
+  }
+  NF_Create3dSprite(0, player_gfx_id, player_pal_id, player_start_x, player_start_y);
+
+  this->player = this->registry->create_entity();
+  this->player.add_component<AnimationComponent>(2, 8, true);
+  this->player.add_component<TransformComponent>(Vec2f(player_start_x, player_start_y));
+  this->player.add_component<SpriteComponent>(
+    0,               // Screen (0 = Top Screen)
+    0,               // 3D Sprite hardware slot ID
+    player_gfx_id,   // Loaded GFX RAM/VRAM slot
+    player_pal_id,   // Loaded Palette RAM/VRAM slot
+    PLAYER_WIDTH,    // Width (64)
+    PLAYER_HEIGHT,   // Height (64)
+    true,            // is_3D
+    false            // is_rotscale
+  );
+  this->player.add_component<CircleColliderComponent>(16, PLAYER_WIDTH, PLAYER_HEIGHT);
+  this->player.add_component<HealthComponent>(1, 1);
+
+  this->registry->update();
+  NF_Sort3dSprites();
+}
+
+void Game::start_game(void) {
+  for (auto& menace : this->active_menaces) {
+    if (menace.has_component<SpriteComponent>()) {
+      auto& sprite = menace.get_component<SpriteComponent>();
+      if (sprite.id < NF_3DSPRITES && NF_3DSPRITE[sprite.id].inuse) {
+        NF_Delete3dSprite(sprite.id);
+      }
+      this->free_menace_slots.push_back(sprite.id);
+    }
+    menace.delete_entity();
+  }
+  this->active_menaces.clear();
+
+  for (auto& bullet : this->active_bullets) {
+    if (bullet.has_component<SpriteComponent>()) {
+      auto& sprite = bullet.get_component<SpriteComponent>();
+      if (sprite.id < NF_3DSPRITES && NF_3DSPRITE[sprite.id].inuse) {
+        NF_Delete3dSprite(sprite.id);
+      }
+      this->free_bullet_slots.push_back(sprite.id);
+    }
+    bullet.delete_entity();
+  }
+  this->active_bullets.clear();
+
+  this->registry->update();
+
+  this->spawn_player();
+
+  this->player_lives = 1;
+  this->is_paused = false;
+  this->menaces_defeated_count = 0;
+  this->menace_spawn_timer = 30;
+  this->shoot_cooldown = 0;
+
+  this->bg_buildings_scroll_x = 0;
+  this->bg_buildings_last_chunk = 0;
+  this->bg_front_beam_scroll_x = 0;
+
+  u8 map_base = NF_TILEDBG_LAYERS[0][2].mapbase;
+  u8 bg_slot = NF_TILEDBG_LAYERS[0][2].bgslot;
+  if (NF_BUFFER_BGMAP[bg_slot] != nullptr) {
+    void* vram_dest0 = reinterpret_cast<void*>(0x06000000 + (map_base * 2048));
+    void* vram_dest1 = reinterpret_cast<void*>(0x06000000 + ((map_base + 1) * 2048));
+    dmaCopyWords(3, NF_BUFFER_BGMAP[bg_slot], vram_dest0, 2048);
+    dmaCopyWords(3, NF_BUFFER_BGMAP[bg_slot] + 2048, vram_dest1, 2048);
+  }
+
+  NF_ScrollBg(0, 3, 0, 0);
+  NF_ScrollBg(0, 2, 0, 0);
+  NF_ScrollBg(0, 1, 0, 0);
+
+  NF_ShowBg(0, 1);
+  NF_ShowBg(0, 2);
+  NF_ShowBg(0, 3);
+
+  consoleClear();
+
+  this->state = GameState::PLAYING;
+}
+
+void Game::return_to_title(void) {
+  this->state = GameState::TITLE;
+
+  NF_HideBg(0, 1);
+  NF_HideBg(0, 2);
+  NF_HideBg(0, 3);
+
+  if (NF_3DSPRITE[0].inuse) {
+    NF_Delete3dSprite(0);
+  }
+  if (this->player.is_alive()) {
+    this->player.delete_entity();
+  }
+
+  for (auto& menace : this->active_menaces) {
+    if (menace.has_component<SpriteComponent>()) {
+      auto& sprite = menace.get_component<SpriteComponent>();
+      if (sprite.id < NF_3DSPRITES && NF_3DSPRITE[sprite.id].inuse) {
+        NF_Delete3dSprite(sprite.id);
+      }
+      this->free_menace_slots.push_back(sprite.id);
+    }
+    menace.delete_entity();
+  }
+  this->active_menaces.clear();
+
+  for (auto& bullet : this->active_bullets) {
+    if (bullet.has_component<SpriteComponent>()) {
+      auto& sprite = bullet.get_component<SpriteComponent>();
+      if (sprite.id < NF_3DSPRITES && NF_3DSPRITE[sprite.id].inuse) {
+        NF_Delete3dSprite(sprite.id);
+      }
+      this->free_bullet_slots.push_back(sprite.id);
+    }
+    bullet.delete_entity();
+  }
+  this->active_bullets.clear();
+
+  this->registry->update();
+
+  consoleClear();
+}
+
+void Game::update_title_ui(void) {
+  static u32 last_title_tick = 0;
+  if (global_frame_counter - last_title_tick < 10) {
+    return;
+  }
+  last_title_tick = global_frame_counter;
+
+  printf("\x1b[2;2H==============================");
+  printf("\x1b[3;2H     2D GAME ENGINE (NDS)     ");
+  printf("\x1b[4;2H==============================");
+
+  if ((global_frame_counter / 30) % 2 == 0) {
+    printf("\x1b[8;5H>>> PRESS START OR A <<<    ");
+    printf("\x1b[9;6HTOUCH SCREEN TO PLAY       ");
+  } else {
+    printf("\x1b[8;5H                            ");
+    printf("\x1b[9;6H                            ");
+  }
+
+  printf("\x1b[13;2HControls:");
+  printf("\x1b[14;4H- D-Pad : Move Ship");
+  printf("\x1b[15;4H- Y     : Shoot Bullet");
+  printf("\x1b[16;4H- START : Start Game / Pause");
+  printf("\x1b[17;4H- SELECT: Shutdown Console");
+  printf("\x1b[19;2H------------------------------");
+  printf("\x1b[20;5HLives: 1  |  1-Hit KO");
+  printf("\x1b[22;2H==============================");
 }
 
 void Game::setup(void) {
@@ -228,10 +386,27 @@ void Game::process_input(void) {
   keys = static_cast<u16>(keys_held);
   touchscreen = touch;
 
-  // Handle Quit / Exit triggers:
-  if (keys_pressed & KEY_START) {
-    // this->scene_manager->stop_scene();
+  // SELECT button shuts down the game (like original START functionality):
+  if (keys_pressed & KEY_SELECT) {
     this->is_running = false;
+    return;
+  }
+
+  if (this->state == GameState::TITLE) {
+    if ((keys_pressed & (KEY_START | KEY_A)) || (keys_pressed & KEY_TOUCH)) {
+      this->start_game();
+    }
+    return;
+  }
+
+  // During Gameplay: START button pauses / unpauses the game:
+  if (keys_pressed & KEY_START) {
+    this->is_paused = !this->is_paused;
+    return;
+  }
+
+  // If paused, don't process gameplay movement/shooting:
+  if (this->is_paused) {
     return;
   }
 
@@ -540,30 +715,81 @@ void Game::update_ui(void) {
   printf("\x1b[5;2HControls:");
   printf("\x1b[6;4H- D-Pad : Move Player");
   printf("\x1b[7;4H- Y : Shoot Bullet");
-  printf("\x1b[9;2H------------------------------");
-  printf("\x1b[10;2HActive Menaces : %2d / %2d      ", static_cast<int>(this->active_menaces.size()), static_cast<int>(MAX_MENACES));
-  printf("\x1b[11;2HDefeated Score : %4lu           ", this->menaces_defeated_count);
-  printf("\x1b[12;2HActive Bullets : %2d            ", static_cast<int>(this->active_bullets.size()));
-  printf("\x1b[12;2HFrame: %2d            ", static_cast<int>(global_frame_counter));
+  printf("\x1b[8;4H- START : Pause / Resume");
+  printf("\x1b[9;4H- SELECT: Shutdown Console");
+  printf("\x1b[11;2H------------------------------");
+  printf("\x1b[12;2HPlayer Lives   : %2d           ", this->player_lives);
+  printf("\x1b[13;2HActive Menaces : %2d / %2d      ", static_cast<int>(this->active_menaces.size()), static_cast<int>(MAX_MENACES));
+  printf("\x1b[14;2HDefeated Score : %4lu           ", this->menaces_defeated_count);
+  printf("\x1b[15;2HActive Bullets : %2d            ", static_cast<int>(this->active_bullets.size()));
+  if (this->is_paused) {
+    printf("\x1b[17;7H*** GAME PAUSED ***    ");
+    printf("\x1b[18;5HPress START to resume  ");
+  } else {
+    printf("\x1b[17;2H                              ");
+    printf("\x1b[18;2H                              ");
+  }
 }
 
 void Game::update(void) {
   // Increment global tick counter (used by AnimationSystem and timed events)
   global_frame_counter++;
 
-  // Update background scrolling (move buildings from right to left):
-  this->bg_buildings_scroll_x += 1;
-  if (this->bg_buildings_scroll_x >= 512) {
-    this->bg_buildings_scroll_x = 0;
+  if (this->state == GameState::TITLE) {
+    this->update_title_ui();
+    return;
   }
-  NF_ScrollBg(0, 2, this->bg_buildings_scroll_x, 0);
+
+  if (this->is_paused) {
+    this->update_ui();
+    return;
+  }
 
   // Update the engine systems:
   this->event_manager->reset();
   this->registry->get_system<DamageSystem>().subscribe_to_collision_event(*this->event_manager);
-  // this->registry->get_system<UISystem>().subscribe_to_click_event(*this->event_manager);  // TODO
 
   this->registry->update();
+
+  // If player died from collision / damage, return to title screen:
+  if (!this->player.is_alive()) {
+    this->return_to_title();
+    return;
+  }
+
+  // Update background scrolling (1024 px circular buffer streaming):
+  this->bg_buildings_scroll_x += 1;
+  if (this->bg_buildings_scroll_x >= BUILDINGS_TOTAL_WIDTH) {
+    this->bg_buildings_scroll_x = 0;
+  }
+
+  s32 current_chunk = this->bg_buildings_scroll_x / BUILDINGS_CHUNK_WIDTH;
+  if (current_chunk != this->bg_buildings_last_chunk) {
+    this->bg_buildings_last_chunk = current_chunk;
+
+    // When current_chunk is even (0, 2), Block 0 is on-screen -> Block 1 is off-screen.
+    // When current_chunk is odd (1, 3), Block 1 is on-screen -> Block 0 is off-screen.
+    u8 target_block = (current_chunk % 2 == 0) ? 1 : 0;
+    s32 upcoming_chunk = (current_chunk + 1) % BUILDINGS_TOTAL_CHUNKS;
+
+    u8 map_base = NF_TILEDBG_LAYERS[0][2].mapbase;
+    void* vram_dest = reinterpret_cast<void*>(0x06000000 + ((map_base + target_block) * 2048));
+
+    u8 bg_slot = NF_TILEDBG_LAYERS[0][2].bgslot;
+    const void* ram_src = reinterpret_cast<const void*>(NF_BUFFER_BGMAP[bg_slot] + (upcoming_chunk * 2048));
+
+    dmaCopyWords(3, ram_src, vram_dest, 2048);
+  }
+
+  s32 hw_buildings_scroll_x = this->bg_buildings_scroll_x % 512;
+  NF_ScrollBg(0, 2, hw_buildings_scroll_x, 0);
+
+  // Update foreground beam scrolling (move Front_Beam from right to left):
+  this->bg_front_beam_scroll_x += this->front_beam_speed;
+  if (this->bg_front_beam_scroll_x >= 256) {
+    this->bg_front_beam_scroll_x -= 256;
+  }
+  NF_ScrollBg(0, 1, this->bg_front_beam_scroll_x, 0);
 
   // Handle player movement and boundary limits (including shooting):
   this->update_player_input();
@@ -572,6 +798,12 @@ void Game::update(void) {
   this->registry->get_system<AnimationSystem>().update();
   this->registry->get_system<CollisionSystem>().update(*this->event_manager);
   this->registry->get_system<MovementSystem>().update(this->delta_time);
+
+  // If collision in this frame killed the player, return to title screen:
+  if (!this->player.is_alive()) {
+    this->return_to_title();
+    return;
+  }
 
   // Update enemy spawns and movement towards player:
   this->update_menaces();
@@ -588,14 +820,11 @@ void Game::update(void) {
 }
 
 void Game::render(void) {
-  // Update 2D sprite positions in NFlib OAM buffers via ECS:
-  this->registry->get_system<RenderSystem>().update();
-
-  // Update text positions / NFlib text layers:
-  // TODO: include the asset manager as a parameter.
-  // this->registry->get_system<RenderTextSystem>().update();  // TODO
-
-  NF_Draw3dSprites();
+  if (this->state == GameState::PLAYING) {
+    // Update 2D sprite positions in NFlib OAM buffers via ECS:
+    this->registry->get_system<RenderSystem>().update();
+    NF_Draw3dSprites();
+  }
   glFlush(0);
 
   // Flush NFlib's shadow OAM buffer to the DS hardware OAM registers.
@@ -609,8 +838,10 @@ void Game::render(void) {
   // Synchronize to frame refresh (~60 FPS VBlank interrupt):
   swiWaitForVBlank();
 
-  // Update animated 3D sprite graphics textures if needed:
-  NF_Update3dSpritesGfx();
+  if (this->state == GameState::PLAYING) {
+    // Update animated 3D sprite graphics textures if needed:
+    NF_Update3dSpritesGfx();
+  }
 }
 
 void Game::run(void) {
