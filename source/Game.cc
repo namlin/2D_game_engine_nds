@@ -114,9 +114,13 @@ void Game::init_assets(void) {
 
   // Backgrounds:
   this->asset_manager->load_tiled_bg("bg3", "bg/Stage_1-1", 256, 256);
+  this->asset_manager->load_tiled_bg("buildings_1", "bg/buildings_1", 512, 256);
 
-  // Instantiate background on Screen 0, Layer 3:
+  // Instantiate background on Screen 0, Layer 3 (Far background):
   NF_CreateTiledBg(0, 3, "bg3");
+
+  // Instantiate buildings on Screen 0, Layer 2 (Midground):
+  NF_CreateTiledBg(0, 2, "buildings_1");
 
   // Sprites:
   this->asset_manager->load_3d_sprite("Player_1", "sprite/Player_1", 64, 64, 0, 0, false);
@@ -428,11 +432,13 @@ void Game::spawn_menace(void) {
     true,            // is_3D
     false            // is_rotscale
   );
+
   new_menace.add_component<AnimationComponent>(
     4,               // 4 frames (each 32x32)
     30,              // Animation speed: switch frame every 30 frames
     true             // Loop animation
   );
+
   new_menace.add_component<CircleColliderComponent>(16, MENACE_WIDTH, MENACE_HEIGHT);
   new_menace.add_component<HealthComponent>(40, 40);
   new_menace.add_component<EnemyComponent>(speed);
@@ -444,7 +450,9 @@ void Game::update_menaces(void) {
   // Spawn countdown:
   if (this->menace_spawn_timer > 0) {
     this->menace_spawn_timer--;
-  } else {
+  }
+
+  else {
     this->spawn_menace();
     this->menace_spawn_timer = 45 + (rand() % 45); // Spawn next Menace in ~0.75-1.5 seconds
   }
@@ -452,6 +460,7 @@ void Game::update_menaces(void) {
   // Get player center position for homing/tracking:
   Vec2f player_center(0, 0);
   bool has_player = this->player.has_component<TransformComponent>();
+
   if (has_player) {
     const auto& pt = this->player.get_component<TransformComponent>();
     player_center.x = pt.position.x + (PLAYER_WIDTH / 2);
@@ -541,6 +550,13 @@ void Game::update_ui(void) {
 void Game::update(void) {
   // Increment global tick counter (used by AnimationSystem and timed events)
   global_frame_counter++;
+
+  // Update background scrolling (move buildings from right to left):
+  this->bg_buildings_scroll_x += 1;
+  if (this->bg_buildings_scroll_x >= 512) {
+    this->bg_buildings_scroll_x = 0;
+  }
+  NF_ScrollBg(0, 2, this->bg_buildings_scroll_x, 0);
 
   // Update the engine systems:
   this->event_manager->reset();

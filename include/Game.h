@@ -75,6 +75,9 @@ class Game {
   std::vector<Entity> active_bullets;
   u8 shoot_cooldown = 0;
 
+  // Background scrolling:
+  s32 bg_buildings_scroll_x = 0;
+
   // Fixed delta time for 60Hz NDS hardware (~0.016667 seconds)
   // In fixed-point (20.12 format): ~68 units (1/60 * 4096)
   // If floating-point is needed:
