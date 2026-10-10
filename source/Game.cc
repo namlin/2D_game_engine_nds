@@ -5,7 +5,6 @@ u32 global_frame_counter = 0;
 u16 keys = 0;
 touchPosition touchscreen = {};
 
-
 Game::Game(void) {
   this->asset_manager = new AssetManager();
 
@@ -44,6 +43,10 @@ Game::~Game(void) {
   delete this->event_manager;
   // delete this->scene_manager;  // TODO
   delete this->registry;
+  if (this->audio_streamer != nullptr) {
+    delete this->audio_streamer;
+    this->audio_streamer = nullptr;
+  }
 
   this->asset_manager = nullptr;
   this->controller_manager = nullptr;
@@ -92,9 +95,11 @@ void Game::init(void) {
   NF_InitSpriteBuffers();
   NF_Init3dSpriteSys();
 
-  // Initialize sound hardware and NFlib raw sound buffers:
+  // Initialize sound hardware, NFlib raw sound buffers, and audio streamer:
   soundEnable();
   NF_InitRawSoundBuffers();
+  this->audio_streamer = new AudioStreamer();
+  this->audio_streamer->init();
 
   // Load assets into RAM/VRAM via AssetManager:
   this->init_assets();
@@ -152,8 +157,8 @@ void Game::init_assets(void) {
              | BLEND_SRC_BG0
              | BLEND_DST_BG1 | BLEND_DST_BG2 | BLEND_DST_BG3 | BLEND_DST_BACKDROP;
 
-  // Load gameplay BGM (11025 Hz, 8-bit signed PCM mono, fits in 256 KB buffer):
-  NF_LoadRawSound("bgm/Samurai_v1", 0, 11025, 0);
+  // Note: Large BGM tracks like Cancer_Dancer.raw (~3.8 MB) are streamed in buffers
+  // directly from NitroFS via AudioStreamer rather than preloaded into RAM.
 
   this->init_3D_sprites();
 }
@@ -200,6 +205,7 @@ void Game::spawn_player(void) {
   if (NF_3DSPRITE[0].inuse) {
     NF_Delete3dSprite(0);
   }
+
   NF_Create3dSprite(0, player_gfx_id, player_pal_id, player_start_x, player_start_y);
 
   this->player = this->registry->create_entity();
@@ -215,10 +221,12 @@ void Game::spawn_player(void) {
     true,            // is_3D
     false            // is_rotscale
   );
+
   this->player.add_component<CircleColliderComponent>(16, PLAYER_WIDTH, PLAYER_HEIGHT);
   this->player.add_component<HealthComponent>(1, 1);
 
   this->registry->update();
+
   NF_Sort3dSprites();
 }
 
@@ -226,25 +234,33 @@ void Game::start_game(void) {
   for (auto& menace : this->active_menaces) {
     if (menace.has_component<SpriteComponent>()) {
       auto& sprite = menace.get_component<SpriteComponent>();
+
       if (sprite.id < NF_3DSPRITES && NF_3DSPRITE[sprite.id].inuse) {
         NF_Delete3dSprite(sprite.id);
       }
+
       this->free_menace_slots.push_back(sprite.id);
     }
+
     menace.delete_entity();
   }
+
   this->active_menaces.clear();
 
   for (auto& bullet : this->active_bullets) {
     if (bullet.has_component<SpriteComponent>()) {
       auto& sprite = bullet.get_component<SpriteComponent>();
+
       if (sprite.id < NF_3DSPRITES && NF_3DSPRITE[sprite.id].inuse) {
         NF_Delete3dSprite(sprite.id);
       }
+
       this->free_bullet_slots.push_back(sprite.id);
     }
+
     bullet.delete_entity();
   }
+
   this->active_bullets.clear();
 
   this->registry->update();
@@ -263,6 +279,7 @@ void Game::start_game(void) {
 
   u8 map_base = NF_TILEDBG_LAYERS[0][2].mapbase;
   u8 bg_slot = NF_TILEDBG_LAYERS[0][2].bgslot;
+
   if (NF_BUFFER_BGMAP[bg_slot] != nullptr) {
     void* vram_dest0 = reinterpret_cast<void*>(0x06000000 + (map_base * 2048));
     void* vram_dest1 = reinterpret_cast<void*>(0x06000000 + ((map_base + 1) * 2048));
@@ -280,12 +297,10 @@ void Game::start_game(void) {
 
   consoleClear();
 
-  // Start gameplay BGM playback (looping from start):
-  if (this->bgm_channel >= 0) {
-    soundKill(this->bgm_channel);
-    this->bgm_channel = -1;
+  // Start gameplay BGM streaming (Cancer_Dancer.raw, 22050 Hz 8-bit mono, looping):
+  if (this->audio_streamer != nullptr) {
+    this->audio_streamer->play("bgm/Cancer_Dancer.raw", 22050, true);
   }
-  this->bgm_channel = static_cast<int>(NF_PlayRawSound(0, 110, 64, true, 0));
 
   this->state = GameState::PLAYING;
 }
@@ -300,6 +315,7 @@ void Game::return_to_title(void) {
   if (NF_3DSPRITE[0].inuse) {
     NF_Delete3dSprite(0);
   }
+
   if (this->player.is_alive()) {
     this->player.delete_entity();
   }
@@ -307,33 +323,40 @@ void Game::return_to_title(void) {
   for (auto& menace : this->active_menaces) {
     if (menace.has_component<SpriteComponent>()) {
       auto& sprite = menace.get_component<SpriteComponent>();
+
       if (sprite.id < NF_3DSPRITES && NF_3DSPRITE[sprite.id].inuse) {
         NF_Delete3dSprite(sprite.id);
       }
+
       this->free_menace_slots.push_back(sprite.id);
     }
+
     menace.delete_entity();
   }
+
   this->active_menaces.clear();
 
   for (auto& bullet : this->active_bullets) {
     if (bullet.has_component<SpriteComponent>()) {
       auto& sprite = bullet.get_component<SpriteComponent>();
+
       if (sprite.id < NF_3DSPRITES && NF_3DSPRITE[sprite.id].inuse) {
         NF_Delete3dSprite(sprite.id);
       }
+
       this->free_bullet_slots.push_back(sprite.id);
     }
+
     bullet.delete_entity();
   }
+
   this->active_bullets.clear();
 
   this->registry->update();
 
   // Stop gameplay BGM when returning to title screen:
-  if (this->bgm_channel >= 0) {
-    soundKill(this->bgm_channel);
-    this->bgm_channel = -1;
+  if (this->audio_streamer != nullptr) {
+    this->audio_streamer->stop();
   }
 
   consoleClear();
@@ -341,9 +364,11 @@ void Game::return_to_title(void) {
 
 void Game::update_title_ui(void) {
   static u32 last_title_tick = 0;
+
   if (global_frame_counter - last_title_tick < 10) {
     return;
   }
+
   last_title_tick = global_frame_counter;
 
   printf("\x1b[2;2H==============================");
@@ -353,7 +378,9 @@ void Game::update_title_ui(void) {
   if ((global_frame_counter / 30) % 2 == 0) {
     printf("\x1b[8;5H>>> PRESS START OR A <<<    ");
     printf("\x1b[9;6HTOUCH SCREEN TO PLAY       ");
-  } else {
+  }
+
+  else {
     printf("\x1b[8;5H                            ");
     printf("\x1b[9;6H                            ");
   }
@@ -416,19 +443,22 @@ void Game::process_input(void) {
     if ((keys_pressed & (KEY_START | KEY_A)) || (keys_pressed & KEY_TOUCH)) {
       this->start_game();
     }
+
     return;
   }
 
   // During Gameplay: START button pauses / unpauses the game:
   if (keys_pressed & KEY_START) {
     this->is_paused = !this->is_paused;
-    if (this->bgm_channel >= 0) {
+
+    if (this->audio_streamer != nullptr) {
       if (this->is_paused) {
-        soundPause(this->bgm_channel);
+        this->audio_streamer->pause();
       } else {
-        soundResume(this->bgm_channel);
+        this->audio_streamer->resume();
       }
     }
+
     return;
   }
 
@@ -570,11 +600,14 @@ void Game::update_bullets(void) {
     if (this->registry->is_entity_to_remove(bullet) || !bullet.has_component<TransformComponent>()) {
       if (bullet.has_component<SpriteComponent>()) {
         auto& sprite = bullet.get_component<SpriteComponent>();
+
         if (sprite.id < NF_3DSPRITES && NF_3DSPRITE[sprite.id].inuse) {
           NF_Delete3dSprite(sprite.id);
         }
+
         this->free_bullet_slots.push_back(sprite.id);
       }
+
       it = this->active_bullets.erase(it);
       continue;
     }
@@ -584,13 +617,17 @@ void Game::update_bullets(void) {
     // Check if bullet traveled off screen:
     if (transform.position.x > static_cast<s32>(SCREEN_WIDTH) || transform.position.x < -16 ||
         transform.position.y > static_cast<s32>(SCREEN_HEIGHT) || transform.position.y < -16) {
+
       if (bullet.has_component<SpriteComponent>()) {
         auto& sprite = bullet.get_component<SpriteComponent>();
+
         if (sprite.id < NF_3DSPRITES && NF_3DSPRITE[sprite.id].inuse) {
           NF_Delete3dSprite(sprite.id);
         }
+
         this->free_bullet_slots.push_back(sprite.id);
       }
+
       bullet.delete_entity();
       it = this->active_bullets.erase(it);
       continue;
@@ -676,11 +713,14 @@ void Game::update_menaces(void) {
     if (this->registry->is_entity_to_remove(menace_entity) || !menace_entity.has_component<TransformComponent>()) {
       if (menace_entity.has_component<SpriteComponent>()) {
         auto& sprite = menace_entity.get_component<SpriteComponent>();
+
         if (sprite.id < NF_3DSPRITES && NF_3DSPRITE[sprite.id].inuse) {
           NF_Delete3dSprite(sprite.id);
         }
+
         this->free_menace_slots.push_back(sprite.id);
       }
+
       this->menaces_defeated_count++;
       it = this->active_menaces.erase(it);
       continue;
@@ -691,13 +731,17 @@ void Game::update_menaces(void) {
     // Check if Menace traveled off-screen to the left:
     if (transform.position.x < -static_cast<s32>(MENACE_WIDTH) ||
         transform.position.y < -32 || transform.position.y > static_cast<s32>(SCREEN_HEIGHT + 32)) {
+
       if (menace_entity.has_component<SpriteComponent>()) {
         auto& sprite = menace_entity.get_component<SpriteComponent>();
+
         if (sprite.id < NF_3DSPRITES && NF_3DSPRITE[sprite.id].inuse) {
           NF_Delete3dSprite(sprite.id);
         }
+
         this->free_menace_slots.push_back(sprite.id);
       }
+
       menace_entity.delete_entity();
       it = this->active_menaces.erase(it);
       continue;
@@ -741,7 +785,7 @@ void Game::update_ui(void) {
   printf("\x1b[3;2H==============================");
   printf("\x1b[5;2HControls:");
   printf("\x1b[6;4H- D-Pad : Move Player");
-  printf("\x1b[7;4H- Y : Shoot Bullet");
+  printf("\x1b[7;4H- Y : Shoot");
   printf("\x1b[8;4H- START : Pause / Resume");
   printf("\x1b[9;4H- SELECT: Shutdown Console");
   printf("\x1b[11;2H------------------------------");
@@ -749,10 +793,13 @@ void Game::update_ui(void) {
   printf("\x1b[13;2HActive Menaces : %2d / %2d      ", static_cast<int>(this->active_menaces.size()), static_cast<int>(MAX_MENACES));
   printf("\x1b[14;2HDefeated Score : %4lu           ", this->menaces_defeated_count);
   printf("\x1b[15;2HActive Bullets : %2d            ", static_cast<int>(this->active_bullets.size()));
+
   if (this->is_paused) {
     printf("\x1b[17;7H*** GAME PAUSED ***    ");
     printf("\x1b[18;5HPress START to resume  ");
-  } else {
+  }
+
+  else {
     printf("\x1b[17;2H                              ");
     printf("\x1b[18;2H                              ");
   }
@@ -813,9 +860,11 @@ void Game::update(void) {
 
   // Update foreground beam scrolling (move Front_Beam from right to left):
   this->bg_front_beam_scroll_x += this->front_beam_speed;
+
   if (this->bg_front_beam_scroll_x >= 256) {
     this->bg_front_beam_scroll_x -= 256;
   }
+
   NF_ScrollBg(0, 1, this->bg_front_beam_scroll_x, 0);
 
   // Handle player movement and boundary limits (including shooting):
@@ -852,6 +901,7 @@ void Game::render(void) {
     this->registry->get_system<RenderSystem>().update();
     NF_Draw3dSprites();
   }
+
   glFlush(0);
 
   // Flush NFlib's shadow OAM buffer to the DS hardware OAM registers.
@@ -884,6 +934,7 @@ void Game::destroy(void) {
     soundKill(this->bgm_channel);
     this->bgm_channel = -1;
   }
+
   NF_UnloadRawSound(0);
 
   if (this->asset_manager != nullptr) {

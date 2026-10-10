@@ -35,10 +35,11 @@ SDIMAGE		:= image.bin
 # Libraries
 # ---------
 
-LIBS		+= -lnflib -ldswifi9 -lnds9 -lc
+LIBS		+= -lmm9 -lnflib -ldswifi9 -lnds9 -lc
 LIBDIRS		+= $(BLOCKSDSEXT)/nflib \
 		   $(BLOCKSDS)/libs/dswifi \
-		   $(BLOCKSDS)/libs/libnds
+		   $(BLOCKSDS)/libs/libnds \
+		   $(BLOCKSDS)/libs/maxmod
 
 # Build artifacts
 # ---------------

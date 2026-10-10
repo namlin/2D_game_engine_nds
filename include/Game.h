@@ -8,11 +8,13 @@
 
 #include <cstdint>
 
-// Managers:
 #include "../include/Constants.h"
+
+// Managers:
 #include "../include/AssetManager.h"
 #include "../include/ControllerManager.h"
 #include "../include/EventManager.h"
+#include "../include/AudioStreamer.h"
 
 // ECS:
 #include "../include/Component.h"
@@ -39,6 +41,7 @@
 #include "../include/RenderSystem.h"
 // #include "../include/ScriptSystem.h"
 
+// Events:
 #include "../include/ClickEvent.h"
 
 enum class GameState {
@@ -64,7 +67,7 @@ class Game {
   bool is_running = false;
   bool is_paused = false;
 
-  int bgm_channel = -1;
+  AudioStreamer* audio_streamer = nullptr;
 
   AssetManager* asset_manager = nullptr;
   EventManager* event_manager = nullptr;
