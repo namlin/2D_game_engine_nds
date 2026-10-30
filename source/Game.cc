@@ -43,6 +43,7 @@ Game::~Game(void) {
   delete this->event_manager;
   // delete this->scene_manager;  // TODO
   delete this->registry;
+
   if (this->audio_streamer != nullptr) {
     delete this->audio_streamer;
     this->audio_streamer = nullptr;
@@ -138,7 +139,7 @@ void Game::init_assets(void) {
   // Instantiate Front_Beam on Screen 0, Layer 1 (Foreground):
   NF_CreateTiledBg(0, 1, "Front_Beam");
 
-  // Adjust layer priorities so Front_Beam has highest priority (in front of all visual elements):
+  // Adjust layer priorities so Front_Beam has highest priority:
   // Layer 1 (Front_Beam): Priority 0 (front-most)
   // Layer 0 (3D Sprites / Player / Enemies / Bullets): Priority 1
   // Layer 2 (buildings): Priority 2
@@ -447,14 +448,17 @@ void Game::process_input(void) {
     return;
   }
 
-  // During Gameplay: START button pauses / unpauses the game:
+  // During Gameplay: START button pauses / un-pauses the game:
   if (keys_pressed & KEY_START) {
     this->is_paused = !this->is_paused;
 
     if (this->audio_streamer != nullptr) {
       if (this->is_paused) {
         this->audio_streamer->pause();
-      } else {
+
+      }
+
+      else {
         this->audio_streamer->resume();
       }
     }
@@ -570,20 +574,20 @@ void Game::shoot_bullet(void) {
   bullet.add_component<TransformComponent>(Vec2f(bullet_start_x, bullet_start_y));
   bullet.add_component<RigidBodyComponent>(Vec2f(240, 0)); // 240 px/sec (4 pixels per frame)
   bullet.add_component<SpriteComponent>(
-    0,               // Screen (0 = Top Screen)
-    slot,            // 3D Sprite hardware slot ID
-    bullet_gfx_id,   // Loaded GFX RAM/VRAM slot
-    bullet_pal_id,   // Loaded Palette RAM/VRAM slot
-    BULLET_WIDTH,    // Width (8)
-    BULLET_HEIGHT,   // Height (8)
-    true,            // is_3D
-    false            // is_rotscale
+    0,               // Screen (0 = Top Screen).
+    slot,            // 3D Sprite hardware slot ID.
+    bullet_gfx_id,   // Loaded GFX RAM/VRAM slot.
+    bullet_pal_id,   // Loaded Palette RAM/VRAM slot.
+    BULLET_WIDTH,    // Width (8).
+    BULLET_HEIGHT,   // Height (8).
+    true,            // is_3D.
+    false            // is_rotscale.
   );
 
   bullet.add_component<AnimationComponent>(
-    2,               // 2 frames
-    8,               // Switch frame every 8 frames
-    true             // Loop animation
+    2,               // 2 frames.
+    8,               // Switch frame every 8 frames.
+    true             // Loop animation.
   );
 
   bullet.add_component<CircleColliderComponent>(4, BULLET_WIDTH, BULLET_HEIGHT);

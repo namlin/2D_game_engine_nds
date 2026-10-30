@@ -73,11 +73,14 @@ void Registry::update(void) {
     // Clean up hardware sprite if the entity had one:
     if (this->has_component<SpriteComponent>(entity)) {
       const auto& sprite = this->get_component<SpriteComponent>(entity);
+
       if (sprite.is_3D) {
         if (sprite.id < NF_3DSPRITES && NF_3DSPRITE[sprite.id].inuse) {
           NF_Delete3dSprite(sprite.id);
         }
-      } else {
+      }
+
+      else {
         NF_DeleteSprite(sprite.screen, sprite.id);
       }
     }

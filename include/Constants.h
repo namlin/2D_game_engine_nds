@@ -25,7 +25,7 @@ const uint16_t BULLET_WIDTH = 8;
 const uint16_t BULLET_HEIGHT = 8;
 
 // Variables:
-extern u32 global_frame_counter ;
+extern u32 global_frame_counter;
 
 extern u16 keys;  // Keys currently pressed.
 extern touchPosition touchscreen;
