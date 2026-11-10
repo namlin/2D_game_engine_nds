@@ -11,6 +11,7 @@
 class TitleScene : public Scene {
  private:
   u32 last_title_tick = 0;
+  u8 selected_stage = 0;
 
   void update_title_ui(void);
 
@@ -26,4 +27,3 @@ class TitleScene : public Scene {
 };
 
 #endif  // TITLESCENE_H
-

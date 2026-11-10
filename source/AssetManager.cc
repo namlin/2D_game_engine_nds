@@ -7,14 +7,30 @@ AssetManager::~AssetManager(void) {
 }
 
 void AssetManager::clear_assets(void) {
+  // Delete any active tiled backgrounds on Screen 0 layers 1..3:
+  for (u8 layer = 1; layer <= 3; layer++) {
+    if (NF_TILEDBG_LAYERS[0][layer].created) {
+      NF_DeleteTiledBg(0, layer);
+    }
+  }
+
+  // Unload tiled backgrounds from RAM:
+  for (const auto& bg_id : this->loaded_tiled_bgs) {
+    NF_UnloadTiledBg(bg_id.c_str());
+  }
+  this->loaded_tiled_bgs.clear();
+
   // Unload 2D/3D sprite graphics and palettes from RAM:
   for (const auto& [id, slot] : this->sprite_gfx_slots) {
     NF_UnloadSpriteGfx(slot);
     NF_UnloadSpritePal(slot);
   }
 
-  // Unload 3D specific sprite RAM slots:
+  // Unload 3D specific sprite VRAM and RAM slots:
   for (const auto& [id, slot] : this->sprite_gfx_ids) {
+    if (NF_TEX256VRAM[slot].inuse) {
+      NF_Free3dSpriteGfx(slot);
+    }
     NF_UnloadSpriteGfx(slot);
   }
 
@@ -29,25 +45,6 @@ void AssetManager::clear_assets(void) {
   this->next_available_slot = 0;
 }
 
-/*
-void AssetManager::add_sprite(const std::string& texture_id,
-                              const char* file_path, u16 width, u16 height) {
-  if (this->next_available_slot >= 256) {
-    return;  // Slot limit reached (NFlib supports max 256 RAM sprite slots).
-  }
-
-  u16 current_slot = this->next_available_slot;
-
-  // NF_LoadSpriteGfx and NF_LoadSpritePal load .img and .pal files from NitroFS
-  NF_LoadSpriteGfx(file_path, current_slot, width, height);
-  NF_LoadSpritePal(file_path, current_slot);
-
-  // Map key to allocated slot index
-  this->sprite_gfx_slots.emplace(texture_id, current_slot);
-
-  this->next_available_slot++;
-}*/
-
 u16 AssetManager::get_sprite_id(const std::string& id) const {
   auto it = this->sprite_gfx_slots.find(id);
 
@@ -55,16 +52,33 @@ u16 AssetManager::get_sprite_id(const std::string& id) const {
     return it->second;
   }
 
-  return 255; // Invalid slot sentinel
+  return 255;  // Invalid slot sentinel
 }
 
 void AssetManager::load_tiled_bg(const std::string& bg_id,
-                          const std::string& file_path, u16 width, u16 height) {
+                                 const std::string& file_path, u16 width, u16 height) {
+  if (this->loaded_tiled_bgs.find(bg_id) != this->loaded_tiled_bgs.end()) {
+    return;
+  }
+
   NF_LoadTiledBg(file_path.c_str(), bg_id.c_str(), width, height);
+  this->loaded_tiled_bgs.insert(bg_id);
+}
+
+void AssetManager::unload_tiled_bg(const std::string& bg_id) {
+  auto it = this->loaded_tiled_bgs.find(bg_id);
+  if (it != this->loaded_tiled_bgs.end()) {
+    NF_UnloadTiledBg(bg_id.c_str());
+    this->loaded_tiled_bgs.erase(it);
+  }
 }
 
 void AssetManager::load_3d_sprite(const std::string& sprite_id, const std::string& file_path,
                                   u16 width, u16 height, u16 gfx_slot, u16 pal_slot, bool keepframes) {
+  if (this->sprite_gfx_ids.find(sprite_id) != this->sprite_gfx_ids.end()) {
+    return;
+  }
+
   // Load sprite graphics and palette from NitroFS into RAM:
   NF_LoadSpriteGfx(file_path.c_str(), gfx_slot, width, height);
   NF_LoadSpritePal(file_path.c_str(), pal_slot);

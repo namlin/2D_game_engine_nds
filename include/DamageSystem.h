@@ -7,6 +7,7 @@
 #include "EventManager.h"
 #include "HealthComponent.h"
 #include "ProjectileComponent.h"
+#include "PropComponent.h"
 #include "System.h"
 
 class DamageSystem : public System {
@@ -23,47 +24,72 @@ class DamageSystem : public System {
     Entity a = e.a;
     Entity b = e.b;
 
-    // Check if 'a' is a projectile and 'b' has health:
-    if (a.has_component<ProjectileComponent>() && b.has_component<HealthComponent>()) {
-      const auto& proj = a.get_component<ProjectileComponent>();
-      if (proj.is_friendly && b.has_component<EnemyComponent>()) {
-        apply_projectile_damage(a, b);
-        return;
-      }
-      if (!proj.is_friendly && !b.has_component<EnemyComponent>()) {
-        apply_projectile_damage(a, b);
-        return;
-      }
+    // Check if 'a' is a projectile:
+    if (a.has_component<ProjectileComponent>()) {
+      handle_projectile_collision(a, b);
       return;
     }
 
-    // Check if 'b' is a projectile and 'a' has health:
-    if (b.has_component<ProjectileComponent>() && a.has_component<HealthComponent>()) {
-      const auto& proj = b.get_component<ProjectileComponent>();
-      if (proj.is_friendly && a.has_component<EnemyComponent>()) {
-        apply_projectile_damage(b, a);
-        return;
-      }
-      if (!proj.is_friendly && !a.has_component<EnemyComponent>()) {
-        apply_projectile_damage(b, a);
-        return;
-      }
+    // Check if 'b' is a projectile:
+    if (b.has_component<ProjectileComponent>()) {
+      handle_projectile_collision(b, a);
       return;
     }
 
-    // Ignore collisions between two enemies:
-    if (a.has_component<EnemyComponent>() && b.has_component<EnemyComponent>()) {
+    // Ignore collisions between two enemies or two props, or enemy vs prop:
+    bool a_is_enemy_or_prop = a.has_component<EnemyComponent>() || a.has_component<PropComponent>();
+    bool b_is_enemy_or_prop = b.has_component<EnemyComponent>() || b.has_component<PropComponent>();
+
+    if (a_is_enemy_or_prop && b_is_enemy_or_prop) {
       return;
     }
 
-    // Fallback: If neither has ProjectileComponent (e.g. enemy vs player):
-    if (!a.has_component<ProjectileComponent>() && !b.has_component<ProjectileComponent>()) {
+    // Player vs Enemy or Prop:
+    if (!a.has_component<PropComponent>() || a.has_component<HealthComponent>()) {
       a.delete_entity();
+    }
+
+    if (!b.has_component<PropComponent>() || b.has_component<HealthComponent>()) {
       b.delete_entity();
     }
   }
 
  private:
+  void handle_projectile_collision(Entity projectile, Entity target) {
+    if (target.has_component<ProjectileComponent>()) {
+      return;
+    }
+
+    const auto& proj = projectile.get_component<ProjectileComponent>();
+
+    // Projectile hitting a Prop / Furniture:
+    if (target.has_component<PropComponent>()) {
+      const auto& prop = target.get_component<PropComponent>();
+      if (prop.blocks_projectiles) {
+        if (prop.is_destructible && target.has_component<HealthComponent>()) {
+          apply_projectile_damage(projectile, target);
+        } else {
+          projectile.delete_entity();
+        }
+      }
+      return;
+    }
+
+    if (!target.has_component<HealthComponent>()) {
+      return;
+    }
+
+    if (proj.is_friendly && target.has_component<EnemyComponent>()) {
+      apply_projectile_damage(projectile, target);
+      return;
+    }
+
+    if (!proj.is_friendly && !target.has_component<EnemyComponent>()) {
+      apply_projectile_damage(projectile, target);
+      return;
+    }
+  }
+
   void apply_projectile_damage(Entity projectile, Entity target) {
     const auto& proj = projectile.get_component<ProjectileComponent>();
     auto& health = target.get_component<HealthComponent>();

@@ -107,7 +107,7 @@ void Game::init(void) {
   this->audio_streamer = new AudioStreamer();
   this->audio_streamer->init();
 
-  // Load assets into RAM/VRAM via AssetManager:
+  // Configure hardware blending and global asset defaults:
   this->init_assets();
 
   this->is_running = true;
@@ -125,43 +125,11 @@ void Game::init_nitroFS(void) {
 }
 
 void Game::init_assets(void) {
-  // (Loads files from NitroFS into RAM and transfers graphics/palettes to VRAM):
-
-  // Backgrounds:
-  this->asset_manager->load_tiled_bg("bg3", "bg/Stage_1-1", 256, 256);
-  this->asset_manager->load_tiled_bg("buildings", "bg/buildings", 512, 256);
-  this->asset_manager->load_tiled_bg("Front_Beam", "bg/Front_Beam", 256, 256);
-
-  // Instantiate background on Screen 0, Layer 3 (Far background):
-  NF_CreateTiledBg(0, 3, "bg3");
-
-  // Instantiate buildings on Screen 0, Layer 2 (Midground 512x256 hardware buffer):
-  NF_CreateTiledBg(0, 2, "buildings");
-
-  // Instantiate Front_Beam on Screen 0, Layer 1 (Foreground):
-  NF_CreateTiledBg(0, 1, "Front_Beam");
-
-  // Adjust layer priorities so Front_Beam has highest priority:
-  // Layer 1 (Front_Beam): Priority 0 (front-most)
-  // Layer 0 (3D Sprites / Player / Enemies / Bullets): Priority 1
-  // Layer 2 (buildings): Priority 2
-  // Layer 3 (bg3): Priority 3
-  REG_BG1CNT = (REG_BG1CNT & ~3) | BG_PRIORITY_0;
-  REG_BG0CNT = (REG_BG0CNT & ~3) | BG_PRIORITY_1;
-
-  // Sprites:
-  this->asset_manager->load_3d_sprite("Player_1", "sprite/Player_1", 64, 64, 0, 0, false);
-  this->asset_manager->load_3d_sprite("Menace", "sprite/Menace", 32, 32, 1, 1, false);
-  this->asset_manager->load_3d_sprite("Player_Bullet", "sprite/Player_Bullet", BULLET_WIDTH, BULLET_HEIGHT, 2, 2, false);
-
   // Set up a transparency blend:
-  // Enable alpha blending:
+  // Enable alpha blending between 3D sprites (BG0) and tiled background layers (BG1..BG3):
   REG_BLDCNT = BLEND_ALPHA
              | BLEND_SRC_BG0
              | BLEND_DST_BG1 | BLEND_DST_BG2 | BLEND_DST_BG3 | BLEND_DST_BACKDROP;
-
-  // Note: Large BGM tracks like Cancer_Dancer.raw (~3.8 MB) are streamed in buffers
-  // directly from NitroFS via AudioStreamer rather than preloaded into RAM.
 }
 
 void Game::setup(void) {
@@ -184,7 +152,8 @@ void Game::setup(void) {
 
   // Register scenes and start on Title Screen:
   this->scene_manager->add_scene("title", new TitleScene());
-  this->scene_manager->add_scene("level_1", new LevelScene());
+  this->scene_manager->add_scene("level_1", new LevelScene("levels/stage_1_1.lvl"));
+  this->scene_manager->add_scene("level_2", new LevelScene("levels/stage_1_2.lvl"));
   this->scene_manager->switch_to("title");
 }
 

@@ -30,6 +30,7 @@
 #include "../include/EnemyComponent.h"
 #include "../include/HealthComponent.h"
 #include "../include/ProjectileComponent.h"
+#include "../include/PropComponent.h"
 #include "../include/RigidBodyComponent.h"
 // #include "../include/ScriptComponent.h"
 #include "../include/SpriteComponent.h"
@@ -46,7 +47,9 @@
 // Events:
 #include "../include/ClickEvent.h"
 
-// Scenes:
+// Scenes & Level Loading:
+#include "../include/LevelData.h"
+#include "../include/LevelLoader.h"
 #include "../include/LevelScene.h"
 #include "../include/TitleScene.h"
 
