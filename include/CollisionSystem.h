@@ -23,18 +23,31 @@ class CollisionSystem : public System {
 
     for (auto i = entities.begin(); i != entities.end(); i++) {
       Entity a = *i;
+      if (!a.is_alive() ||
+          !a.has_component<CircleColliderComponent>() ||
+          !a.has_component<TransformComponent>()) {
+        continue;
+      }
 
       const auto& a_collider = a.get_component<CircleColliderComponent>();
       const auto& a_transform = a.get_component<TransformComponent>();
 
       for (auto j = std::next(i); j != entities.end(); j++) {
+        if (!a.is_alive()) {
+          break;
+        }
+
         Entity b = *j;
+        if (!b.is_alive() ||
+            !b.has_component<CircleColliderComponent>() ||
+            !b.has_component<TransformComponent>()) {
+          continue;
+        }
 
         const auto& b_collider = b.get_component<CircleColliderComponent>();
         const auto& b_transform = b.get_component<TransformComponent>();
 
         // Center calculation using Vec2f (fixed-point arithmetic)
-        // a_collider.width / height should be fixed-point or converted via floatToFixed
         Vec2f a_center(
             a_transform.position.x + ((a_collider.width >> 1) * (a_transform.scale.x >> 12)),
             a_transform.position.y + ((a_collider.height >> 1) * (a_transform.scale.y >> 12))

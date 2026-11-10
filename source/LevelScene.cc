@@ -127,18 +127,22 @@ void LevelScene::cleanup_entities(void) {
   }
 
   if (this->player.is_alive()) {
+    this->player.remove_component<SpriteComponent>();
     this->player.delete_entity();
   }
+  this->player = Entity();
 
   for (auto& menace : this->active_menaces) {
     if (menace.has_component<SpriteComponent>()) {
       auto& sprite = menace.get_component<SpriteComponent>();
+      u8 slot = sprite.id;
 
-      if (sprite.id < NF_3DSPRITES && NF_3DSPRITE[sprite.id].inuse) {
-        NF_Delete3dSprite(sprite.id);
+      if (slot < NF_3DSPRITES && NF_3DSPRITE[slot].inuse) {
+        NF_Delete3dSprite(slot);
       }
 
-      this->free_menace_slots.push_back(sprite.id);
+      menace.remove_component<SpriteComponent>();
+      this->free_menace_slots.push_back(slot);
     }
 
     menace.delete_entity();
@@ -148,12 +152,14 @@ void LevelScene::cleanup_entities(void) {
   for (auto& bullet : this->active_bullets) {
     if (bullet.has_component<SpriteComponent>()) {
       auto& sprite = bullet.get_component<SpriteComponent>();
+      u8 slot = sprite.id;
 
-      if (sprite.id < NF_3DSPRITES && NF_3DSPRITE[sprite.id].inuse) {
-        NF_Delete3dSprite(sprite.id);
+      if (slot < NF_3DSPRITES && NF_3DSPRITE[slot].inuse) {
+        NF_Delete3dSprite(slot);
       }
 
-      this->free_bullet_slots.push_back(sprite.id);
+      bullet.remove_component<SpriteComponent>();
+      this->free_bullet_slots.push_back(slot);
     }
 
     bullet.delete_entity();
@@ -163,12 +169,14 @@ void LevelScene::cleanup_entities(void) {
   for (auto& prop : this->active_props) {
     if (prop.has_component<SpriteComponent>()) {
       auto& sprite = prop.get_component<SpriteComponent>();
+      u8 slot = sprite.id;
 
-      if (sprite.id < NF_3DSPRITES && NF_3DSPRITE[sprite.id].inuse) {
-        NF_Delete3dSprite(sprite.id);
+      if (slot < NF_3DSPRITES && NF_3DSPRITE[slot].inuse) {
+        NF_Delete3dSprite(slot);
       }
 
-      this->free_prop_slots.push_back(sprite.id);
+      prop.remove_component<SpriteComponent>();
+      this->free_prop_slots.push_back(slot);
     }
 
     prop.delete_entity();
@@ -321,6 +329,9 @@ void LevelScene::update(float delta_time) {
   // Handle player movement and boundary limits (including shooting):
   this->update_player_input();
 
+  // Add newly spawned entities to systems before running system updates:
+  registry->update();
+
   registry->get_system<AnimationSystem>().update();
   registry->get_system<CollisionSystem>().update(*event_manager);
   registry->get_system<MovementSystem>().update(delta_time);
@@ -335,6 +346,9 @@ void LevelScene::update(float delta_time) {
   this->update_props();
   this->update_menaces();
   this->update_bullets();
+
+  // Flush entity removals/additions before rendering:
+  registry->update();
 
   // Update bottom screen stats:
   this->update_ui();
@@ -403,6 +417,7 @@ void LevelScene::spawn_player(void) {
   AssetManager* asset_manager = game->get_asset_manager();
 
   if (this->player.is_alive()) {
+    this->player.remove_component<SpriteComponent>();
     this->player.delete_entity();
     registry->update();
   }
@@ -512,10 +527,12 @@ void LevelScene::update_props(void) {
     if (registry->is_entity_to_remove(prop) || !prop.has_component<TransformComponent>()) {
       if (prop.has_component<SpriteComponent>()) {
         auto& sprite = prop.get_component<SpriteComponent>();
-        if (sprite.id < NF_3DSPRITES && NF_3DSPRITE[sprite.id].inuse) {
-          NF_Delete3dSprite(sprite.id);
+        u8 slot = sprite.id;
+        if (slot < NF_3DSPRITES && NF_3DSPRITE[slot].inuse) {
+          NF_Delete3dSprite(slot);
         }
-        this->free_prop_slots.push_back(sprite.id);
+        prop.remove_component<SpriteComponent>();
+        this->free_prop_slots.push_back(slot);
       }
       it = this->active_props.erase(it);
       continue;
@@ -526,10 +543,12 @@ void LevelScene::update_props(void) {
         transform.position.y < -64 || transform.position.y > static_cast<s32>(SCREEN_HEIGHT + 64)) {
       if (prop.has_component<SpriteComponent>()) {
         auto& sprite = prop.get_component<SpriteComponent>();
-        if (sprite.id < NF_3DSPRITES && NF_3DSPRITE[sprite.id].inuse) {
-          NF_Delete3dSprite(sprite.id);
+        u8 slot = sprite.id;
+        if (slot < NF_3DSPRITES && NF_3DSPRITE[slot].inuse) {
+          NF_Delete3dSprite(slot);
         }
-        this->free_prop_slots.push_back(sprite.id);
+        prop.remove_component<SpriteComponent>();
+        this->free_prop_slots.push_back(slot);
       }
       prop.delete_entity();
       it = this->active_props.erase(it);
@@ -654,12 +673,14 @@ void LevelScene::update_bullets(void) {
     if (registry->is_entity_to_remove(bullet) || !bullet.has_component<TransformComponent>()) {
       if (bullet.has_component<SpriteComponent>()) {
         auto& sprite = bullet.get_component<SpriteComponent>();
+        u8 slot = sprite.id;
 
-        if (sprite.id < NF_3DSPRITES && NF_3DSPRITE[sprite.id].inuse) {
-          NF_Delete3dSprite(sprite.id);
+        if (slot < NF_3DSPRITES && NF_3DSPRITE[slot].inuse) {
+          NF_Delete3dSprite(slot);
         }
 
-        this->free_bullet_slots.push_back(sprite.id);
+        bullet.remove_component<SpriteComponent>();
+        this->free_bullet_slots.push_back(slot);
       }
 
       it = this->active_bullets.erase(it);
@@ -674,12 +695,14 @@ void LevelScene::update_bullets(void) {
 
       if (bullet.has_component<SpriteComponent>()) {
         auto& sprite = bullet.get_component<SpriteComponent>();
+        u8 slot = sprite.id;
 
-        if (sprite.id < NF_3DSPRITES && NF_3DSPRITE[sprite.id].inuse) {
-          NF_Delete3dSprite(sprite.id);
+        if (slot < NF_3DSPRITES && NF_3DSPRITE[slot].inuse) {
+          NF_Delete3dSprite(slot);
         }
 
-        this->free_bullet_slots.push_back(sprite.id);
+        bullet.remove_component<SpriteComponent>();
+        this->free_bullet_slots.push_back(slot);
       }
 
       bullet.delete_entity();
@@ -792,12 +815,14 @@ void LevelScene::update_menaces(void) {
     if (registry->is_entity_to_remove(menace_entity) || !menace_entity.has_component<TransformComponent>()) {
       if (menace_entity.has_component<SpriteComponent>()) {
         auto& sprite = menace_entity.get_component<SpriteComponent>();
+        u8 slot = sprite.id;
 
-        if (sprite.id < NF_3DSPRITES && NF_3DSPRITE[sprite.id].inuse) {
-          NF_Delete3dSprite(sprite.id);
+        if (slot < NF_3DSPRITES && NF_3DSPRITE[slot].inuse) {
+          NF_Delete3dSprite(slot);
         }
 
-        this->free_menace_slots.push_back(sprite.id);
+        menace_entity.remove_component<SpriteComponent>();
+        this->free_menace_slots.push_back(slot);
       }
 
       this->menaces_defeated_count++;
@@ -813,12 +838,14 @@ void LevelScene::update_menaces(void) {
 
       if (menace_entity.has_component<SpriteComponent>()) {
         auto& sprite = menace_entity.get_component<SpriteComponent>();
+        u8 slot = sprite.id;
 
-        if (sprite.id < NF_3DSPRITES && NF_3DSPRITE[sprite.id].inuse) {
-          NF_Delete3dSprite(sprite.id);
+        if (slot < NF_3DSPRITES && NF_3DSPRITE[slot].inuse) {
+          NF_Delete3dSprite(slot);
         }
 
-        this->free_menace_slots.push_back(sprite.id);
+        menace_entity.remove_component<SpriteComponent>();
+        this->free_menace_slots.push_back(slot);
       }
 
       menace_entity.delete_entity();

@@ -20,6 +20,12 @@ class MovementSystem : public System {
 
   void update(double delta_time) {
     for (auto entity : this->get_entities()) {
+      if (!entity.is_alive() ||
+          !entity.has_component<RigidBodyComponent>() ||
+          !entity.has_component<TransformComponent>()) {
+        continue;
+      }
+
       const auto& rigid_body = entity.get_component<RigidBodyComponent>();
       auto& transform = entity.get_component<TransformComponent>();
 

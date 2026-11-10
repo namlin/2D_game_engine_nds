@@ -18,14 +18,19 @@ Entity Registry::create_entity(void) {
     id = this->total_entities++;
 
     if (id >= this->entity_component_signatures.size()) {
-      this->entity_component_signatures.resize(id + EXTRA_SIZE);  // TEST
+      this->entity_component_signatures.resize(id + EXTRA_SIZE);
+      this->entity_alive.resize(id + EXTRA_SIZE, false);
     }
-  }
-
-  else {
+  } else {
     id = this->free_IDs.front();
     this->free_IDs.pop_front();
   }
+
+  if (id >= this->entity_alive.size()) {
+    this->entity_alive.resize(id + EXTRA_SIZE, false);
+  }
+  this->entity_alive[id] = true;
+  this->entity_component_signatures[id].reset();
 
   Entity entity(id);
   entity.registry = this;
@@ -35,7 +40,10 @@ Entity Registry::create_entity(void) {
 }
 
 void Registry::delete_entity(Entity entity) {
-  this->entities_to_remove.insert(entity);
+  const size_t id = entity.get_id();
+  if (id < this->entity_alive.size() && this->entity_alive[id]) {
+    this->entities_to_remove.insert(entity);
+  }
 }
 
 void Registry::add_entity_to_systems(Entity entity) {
@@ -62,15 +70,24 @@ void Registry::remove_entity_from_systems(Entity entity) {
 
 void Registry::update(void) {
   for (auto entity : this->entities_to_add) {
+    // Skip entities that were queued for deletion in the same frame:
+    if (this->entities_to_remove.find(entity) != this->entities_to_remove.end()) {
+      continue;
+    }
     this->add_entity_to_systems(entity);
   }
 
   this->entities_to_add.clear();
 
   for (auto entity : this->entities_to_remove) {
+    const size_t id = entity.get_id();
+    if (id >= this->entity_alive.size() || !this->entity_alive[id]) {
+      continue;
+    }
+
     this->remove_entity_from_systems(entity);
 
-    // Clean up hardware sprite if the entity had one:
+    // Clean up hardware sprite if the entity still owns one:
     if (this->has_component<SpriteComponent>(entity)) {
       const auto& sprite = this->get_component<SpriteComponent>(entity);
 
@@ -78,17 +95,18 @@ void Registry::update(void) {
         if (sprite.id < NF_3DSPRITES && NF_3DSPRITE[sprite.id].inuse) {
           NF_Delete3dSprite(sprite.id);
         }
-      }
-
-      else {
-        NF_DeleteSprite(sprite.screen, sprite.id);
+      } else {
+        if (sprite.screen < 2 && sprite.id < 128 && NF_SPRITEOAM[sprite.screen][sprite.id].created) {
+          NF_DeleteSprite(sprite.screen, sprite.id);
+        }
       }
     }
 
-    // Set the whole bitset to 0:
-    this->entity_component_signatures[entity.get_id()].reset();
+    // Set the whole bitset to 0 and mark entity as dead before recycling its ID:
+    this->entity_component_signatures[id].reset();
+    this->entity_alive[id] = false;
 
-    this->free_IDs.push_back(entity.get_id());
+    this->free_IDs.push_back(id);
   }
 
   this->entities_to_remove.clear();

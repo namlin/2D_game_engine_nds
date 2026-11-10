@@ -2,8 +2,8 @@
 #define REGISTRY_H
 
 #include <bitset>
-#include <deque>
 #include <cstdint>
+#include <deque>
 #include <set>
 #include <stdexcept>
 #include <typeindex>
@@ -62,10 +62,19 @@ class Registry {
     return this->entities_to_remove.find(entity) != this->entities_to_remove.end();
   }
 
+  bool is_entity_alive(Entity entity) const {
+    const size_t id = entity.get_id();
+    if (id >= this->entity_alive.size() || !this->entity_alive[id]) {
+      return false;
+    }
+    return !this->is_entity_to_remove(entity);
+  }
+
  private:
   size_t total_entities = 0;
   std::vector<IPool*> entries;
   std::vector<std::bitset<MAX_COMPONENTS>> entity_component_signatures;
+  std::vector<bool> entity_alive;
   std::unordered_map<std::type_index, System*> systems;
   std::deque<size_t> free_IDs;
 
@@ -89,6 +98,7 @@ void Registry::add_component(Entity entity, TArgs&&... args) {
 
   if (entity_id >= this->entity_component_signatures.size()) {
     this->entity_component_signatures.resize(entity_id + 100);
+    this->entity_alive.resize(entity_id + 100, false);
   }
 
   TComponent component(std::forward<TArgs>(args)...);
@@ -149,12 +159,6 @@ bool Registry::has_system(void) const {
 template <typename TSystem>
 TSystem& Registry::get_system(void) const {
   auto system = this->systems.find(std::type_index(typeid(TSystem)));
-
-  /*
-  if (system == this->systems.end()) {
-    throw std::runtime_error("System not found");
-    // TODO: add error.
-  }*/
 
   return *static_cast<TSystem*>(system->second);
 }

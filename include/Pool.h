@@ -44,6 +44,9 @@ class Pool : public IPool {
   }
 
   void set(size_t index, TComponent object) {
+    if (index >= this->data.size()) {
+      this->data.resize(index + EXTRA_SIZE);
+    }
     this->data[index] = object;
   }
 

@@ -6,10 +6,12 @@ size_t Entity::get_id(void) const {
 }
 
 void Entity::delete_entity(void) {
-  this->registry->delete_entity(*this);
+  if (this->registry != nullptr) {
+    this->registry->delete_entity(*this);
+  }
 }
 
 bool Entity::is_alive(void) const {
   if (this->registry == nullptr) return false;
-  return !this->registry->is_entity_to_remove(*this);
+  return this->registry->is_entity_alive(*this);
 }
