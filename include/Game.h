@@ -13,9 +13,10 @@
 
 // Managers:
 #include "../include/AssetManager.h"
+#include "../include/AudioStreamer.h"
 #include "../include/ControllerManager.h"
 #include "../include/EventManager.h"
-#include "../include/AudioStreamer.h"
+#include "../include/SceneManager.h"
 
 // ECS:
 #include "../include/Component.h"
@@ -45,18 +46,14 @@
 // Events:
 #include "../include/ClickEvent.h"
 
-enum class GameState {
-  TITLE,
-  PLAYING
-};
+// Scenes:
+#include "../include/LevelScene.h"
+#include "../include/TitleScene.h"
 
 class Game {
  private:
   // --- Attributes ---
   inline static Game* instance;
-
-  GameState state = GameState::TITLE;
-  int player_lives = 1;
 
   uint8_t window_width = 255;
   uint8_t window_height = 192;
@@ -66,38 +63,14 @@ class Game {
   uint16_t millisecs_previous_frame = 0;
 
   bool is_running = false;
-  bool is_paused = false;
 
   AudioStreamer* audio_streamer = nullptr;
 
   AssetManager* asset_manager = nullptr;
   EventManager* event_manager = nullptr;
+  SceneManager* scene_manager = nullptr;
 
   Registry* registry = nullptr;
-
-  Entity player;
-  const s16 player_speed = 2;
-
-  // Menace enemy management:
-  static constexpr size_t MAX_MENACES = 6;
-  std::vector<u8> free_menace_slots;
-  std::vector<Entity> active_menaces;
-  u16 menace_spawn_timer = 0;
-  u32 menaces_defeated_count = 0;
-
-  // Bullet management:
-  std::vector<u8> free_bullet_slots;
-  std::vector<Entity> active_bullets;
-  u8 shoot_cooldown = 0;
-
-  // Background scrolling:
-  s32 bg_buildings_scroll_x = 0;
-  s32 bg_buildings_last_chunk = 0;
-  static constexpr s32 BUILDINGS_TOTAL_WIDTH = 1024;
-  static constexpr s32 BUILDINGS_CHUNK_WIDTH = 256;
-  static constexpr s32 BUILDINGS_TOTAL_CHUNKS = BUILDINGS_TOTAL_WIDTH / BUILDINGS_CHUNK_WIDTH;
-  s32 bg_front_beam_scroll_x = 0;
-  const s32 front_beam_speed = 3;
 
   // Fixed delta time for 60Hz NDS hardware (~0.016667 seconds)
   // In fixed-point (20.12 format): ~68 units (1/60 * 4096)
@@ -115,17 +88,6 @@ class Game {
   // --- Private Methods ---
   void init_nitroFS(void);
   void init_assets(void);
-  void init_3D_sprites(void);
-  void start_game(void);
-  void return_to_title(void);
-  void spawn_player(void);
-  void update_player_input(void);
-  void shoot_bullet(void);
-  void update_bullets(void);
-  void spawn_menace(void);
-  void update_menaces(void);
-  void update_ui(void);
-  void update_title_ui(void);
 
   void process_input(void);
   void update(void);
@@ -135,6 +97,12 @@ class Game {
   ControllerManager* controller_manager = nullptr;
 
   static Game* get_instance(void);
+
+  AssetManager* get_asset_manager(void) const { return this->asset_manager; }
+  EventManager* get_event_manager(void) const { return this->event_manager; }
+  AudioStreamer* get_audio_streamer(void) const { return this->audio_streamer; }
+  SceneManager* get_scene_manager(void) const { return this->scene_manager; }
+  Registry* get_registry(void) const { return this->registry; }
 
   void init(void);
   void setup(void);
