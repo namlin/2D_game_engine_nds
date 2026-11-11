@@ -47,9 +47,9 @@ void LevelScene::init_3D_sprites(void) {
   }
   this->active_bullets.clear();
 
-  // Pool of available 3D sprite slots for Furniture / Props (slots 41 to 55):
+  // Pool of available 3D sprite slots for Furniture / Props / Platforms (slots 41 to 120):
   this->free_prop_slots.clear();
-  for (u8 slot = 41; slot <= 55; slot++) {
+  for (u8 slot = 41; slot <= 120; slot++) {
     this->free_prop_slots.push_back(slot);
   }
   this->active_props.clear();
@@ -118,6 +118,49 @@ void LevelScene::setup_level_assets_and_bgs(void) {
 
   // Layer 0 (3D Sprites) priority:
   REG_BG0CNT = (REG_BG0CNT & ~3) | (this->level_data.sprite_layer_priority & 3);
+}
+
+void LevelScene::spawn_platforms(void) {
+  if (this->level_data.platforms.empty()) {
+    return;
+  }
+
+  Game* game = Game::get_instance();
+  Registry* registry = game->get_registry();
+  AssetManager* asset_manager = game->get_asset_manager();
+
+  for (const auto& plat : this->level_data.platforms) {
+    u16 gfx_id = asset_manager->get_gfx_id(plat.sprite_id);
+    u16 pal_id = asset_manager->get_pal_id(plat.sprite_id);
+    if (gfx_id == 255 || pal_id == 255) {
+      continue;
+    }
+
+    // Tile 32x16 visual stone segments across the platform width:
+    u16 seg_w = 32;
+    u16 seg_h = plat.height;
+    for (s16 offset_x = 0; offset_x < static_cast<s16>(plat.width); offset_x += seg_w) {
+      if (this->free_prop_slots.empty()) {
+        break;
+      }
+
+      u8 slot = this->free_prop_slots.back();
+      this->free_prop_slots.pop_back();
+
+      s16 seg_x = plat.x + offset_x;
+      s16 seg_y = plat.y;
+
+      NF_Create3dSprite(slot, gfx_id, pal_id, seg_x, seg_y);
+
+      Entity seg = registry->create_entity();
+      seg.add_component<TransformComponent>(Vec2f(seg_x, seg_y));
+      seg.add_component<SpriteComponent>(0, slot, gfx_id, pal_id, seg_w, seg_h, true, false);
+
+      this->active_props.push_back(seg);
+    }
+  }
+
+  NF_Sort3dSprites();
 }
 
 void LevelScene::cleanup_entities(void) {
@@ -202,8 +245,15 @@ void LevelScene::on_enter(void) {
 
   this->player_lives = this->level_data.player.lives;
   this->player_speed = this->level_data.player.speed;
+  this->player_width = this->level_data.player.width;
+  this->player_height = this->level_data.player.height;
   this->player_dir_x = 1;
   this->player_dir_y = 0;
+  this->player_vy_sub = 0;
+  this->player_y_sub = 0;
+  this->is_grounded = this->level_data.platformer;
+  this->frame_keys_pressed = 0;
+  this->invincibility_timer = 0;
   this->is_paused = false;
 
   this->camera_x = 0;
@@ -217,7 +267,11 @@ void LevelScene::on_enter(void) {
   this->shoot_cooldown = 0;
   this->last_update_tick = 0;
 
-  this->spawn_player();
+  this->last_safe_x = this->level_data.player.start_x;
+  this->last_safe_y = this->level_data.player.start_y;
+
+  this->spawn_platforms();
+  this->spawn_player(this->last_safe_x, this->last_safe_y);
   this->update_camera();
   this->update_backgrounds();
 
@@ -257,6 +311,8 @@ void LevelScene::on_exit(void) {
 void LevelScene::process_input(u32 keys_pressed, u32 keys_released, u32 keys_held, touchPosition touch) {
   Game* game = Game::get_instance();
   AudioStreamer* audio_streamer = game->get_audio_streamer();
+
+  this->frame_keys_pressed = keys_pressed;
 
   // During Gameplay: START button pauses / un-pauses the game:
   if (keys_pressed & KEY_START) {
@@ -310,16 +366,29 @@ void LevelScene::update(float delta_time) {
   Registry* registry = game->get_registry();
   EventManager* event_manager = game->get_event_manager();
 
+  if (this->invincibility_timer > 0) {
+    this->invincibility_timer--;
+  }
+
   // Update the engine systems:
   event_manager->reset();
   registry->get_system<DamageSystem>().subscribe_to_collision_event(*event_manager);
 
   registry->update();
 
-  // If player died from collision / damage, return to title screen:
+  // If player died from collision / damage:
   if (!this->player.is_alive()) {
-    game->get_scene_manager()->switch_to("title");
-    return;
+    if (this->invincibility_timer > 0) {
+      // Ignore damage while invincible by respawning immediately at last position:
+      this->spawn_player(this->last_safe_x, this->last_safe_y);
+    } else if (this->player_lives > 1) {
+      this->player_lives--;
+      this->invincibility_timer = 60;  // 1 second of invincibility frames
+      this->spawn_player(this->last_safe_x, this->last_safe_y);
+    } else {
+      game->get_scene_manager()->switch_to("title");
+      return;
+    }
   }
 
   // Check if player reached the level's target score to advance to next_scene:
@@ -347,10 +416,18 @@ void LevelScene::update(float delta_time) {
   registry->get_system<CollisionSystem>().update(*event_manager);
   registry->get_system<MovementSystem>().update(delta_time);
 
-  // If collision in this frame killed the player, return to title screen:
+  // If collision in this frame killed the player:
   if (!this->player.is_alive()) {
-    game->get_scene_manager()->switch_to("title");
-    return;
+    if (this->invincibility_timer > 0) {
+      this->spawn_player(this->last_safe_x, this->last_safe_y);
+    } else if (this->player_lives > 1) {
+      this->player_lives--;
+      this->invincibility_timer = 60;
+      this->spawn_player(this->last_safe_x, this->last_safe_y);
+    } else {
+      game->get_scene_manager()->switch_to("title");
+      return;
+    }
   }
 
   // Update furniture/props, enemy spawns & homing, and bullets:
@@ -378,8 +455,8 @@ void LevelScene::update_camera(void) {
 
   const auto& transform = this->player.get_component<TransformComponent>();
 
-  s32 target_cam_x = transform.position.x + (PLAYER_WIDTH / 2) - (SCREEN_WIDTH / 2);
-  s32 target_cam_y = transform.position.y + (PLAYER_HEIGHT / 2) - (SCREEN_HEIGHT / 2);
+  s32 target_cam_x = transform.position.x + (this->player_width / 2) - (SCREEN_WIDTH / 2);
+  s32 target_cam_y = transform.position.y + (this->player_height / 2) - (SCREEN_HEIGHT / 2);
 
   s32 max_cam_x = std::max<s32>(0, this->level_data.world_width - SCREEN_WIDTH);
   s32 max_cam_y = std::max<s32>(0, this->level_data.world_height - SCREEN_HEIGHT);
@@ -402,7 +479,6 @@ void LevelScene::update_backgrounds(void) {
   for (auto& bg : this->bg_states) {
     if (this->level_data.free_roam) {
       // Camera-driven omnidirectional scrolling (with parallax factor):
-      // scroll_speed == 2 -> 1:1 with camera, 1 -> 0.5x midground parallax, 3 -> 1.5x foreground parallax
       bg.scroll_x = (this->camera_x * bg.config.scroll_speed_x) / 2;
       bg.scroll_y = (this->camera_y * bg.config.scroll_speed_y) / 2;
     } else {
@@ -449,10 +525,16 @@ void LevelScene::render(void) {
   Registry* registry = Game::get_instance()->get_registry();
   // Update 2D/3D sprite positions in NFlib buffers relative to camera:
   registry->get_system<RenderSystem>().update(this->camera_x, this->camera_y);
+
+  // Blink player sprite during invincibility frames:
+  if (this->invincibility_timer > 0 && NF_3DSPRITE[0].inuse) {
+    NF_Show3dSprite(0, (this->invincibility_timer % 4) < 2);
+  }
+
   NF_Draw3dSprites();
 }
 
-void LevelScene::spawn_player(void) {
+void LevelScene::spawn_player(s16 spawn_x, s16 spawn_y) {
   Game* game = Game::get_instance();
   Registry* registry = game->get_registry();
   AssetManager* asset_manager = game->get_asset_manager();
@@ -467,31 +549,40 @@ void LevelScene::spawn_player(void) {
   u16 player_gfx_id = asset_manager->get_gfx_id(sprite_id);
   u16 player_pal_id = asset_manager->get_pal_id(sprite_id);
 
-  s16 player_start_x = this->level_data.player.start_x;
-  s16 player_start_y = this->level_data.player.start_y;
-
   if (NF_3DSPRITE[0].inuse) {
     NF_Delete3dSprite(0);
   }
 
-  NF_Create3dSprite(0, player_gfx_id, player_pal_id, player_start_x, player_start_y);
+  s16 screen_x = static_cast<s16>(spawn_x - this->camera_x);
+  s16 screen_y = static_cast<s16>(spawn_y - this->camera_y);
+
+  NF_Create3dSprite(0, player_gfx_id, player_pal_id, screen_x, screen_y);
+  if (this->level_data.platformer && this->player_dir_x < 0) {
+    NF_Rotate3dSprite(0, 0, 256, 0);
+  }
 
   this->player = registry->create_entity();
-  this->player.add_component<AnimationComponent>(2, 8, true);
-  this->player.add_component<TransformComponent>(Vec2f(player_start_x, player_start_y));
+  if (this->level_data.player.num_frames > 1) {
+    this->player.add_component<AnimationComponent>(this->level_data.player.num_frames, 8, true);
+  }
+  this->player.add_component<TransformComponent>(Vec2f(spawn_x, spawn_y));
   this->player.add_component<SpriteComponent>(
-    0,               // Screen (0 = Top Screen)
-    0,               // 3D Sprite hardware slot ID
-    player_gfx_id,   // Loaded GFX RAM/VRAM slot
-    player_pal_id,   // Loaded Palette RAM/VRAM slot
-    PLAYER_WIDTH,    // Width (64)
-    PLAYER_HEIGHT,   // Height (64)
-    true,            // is_3D
-    false            // is_rotscale
+    0,                     // Screen (0 = Top Screen)
+    0,                     // 3D Sprite hardware slot ID
+    player_gfx_id,         // Loaded GFX RAM/VRAM slot
+    player_pal_id,         // Loaded Palette RAM/VRAM slot
+    this->player_width,    // Width
+    this->player_height,   // Height
+    true,                  // is_3D
+    false                  // is_rotscale
   );
 
-  this->player.add_component<CircleColliderComponent>(16, PLAYER_WIDTH, PLAYER_HEIGHT);
-  this->player.add_component<HealthComponent>(this->player_lives, this->player_lives);
+  this->player.add_component<CircleColliderComponent>(
+    this->level_data.player.collider_radius,
+    this->player_width,
+    this->player_height
+  );
+  this->player.add_component<HealthComponent>(1, 1);
 
   registry->update();
 
@@ -538,7 +629,7 @@ void LevelScene::spawn_prop(const PropSpawnConfig& cfg) {
   u8 slot = this->free_prop_slots.back();
   this->free_prop_slots.pop_back();
 
-  NF_Create3dSprite(slot, gfx_id, pal_id, cfg.x, cfg.y);
+  NF_Create3dSprite(slot, gfx_id, pal_id, cfg.x - this->camera_x, cfg.y - this->camera_y);
 
   Entity prop = registry->create_entity();
   prop.add_component<TransformComponent>(Vec2f(cfg.x, cfg.y));
@@ -602,6 +693,79 @@ void LevelScene::update_props(void) {
   }
 }
 
+void LevelScene::update_platformer_physics(TransformComponent& transform) {
+  s32 p_w = static_cast<s32>(this->player_width);
+  s32 p_h = static_cast<s32>(this->player_height);
+
+  // Jump or Drop-Through input when grounded:
+  bool jump_pressed = (this->frame_keys_pressed & (KEY_B | KEY_A | KEY_UP)) != 0;
+  bool jump_held = (keys & (KEY_B | KEY_A | KEY_UP)) != 0;
+
+  if (this->is_grounded && jump_pressed) {
+    if ((keys & KEY_DOWN) && (transform.position.y + p_h < this->level_data.ground_y)) {
+      // Drop down through one-way elevated platform:
+      transform.position.y += 4;
+      this->is_grounded = false;
+      this->player_vy_sub = 64;
+      this->player_y_sub = 0;
+    } else {
+      // Castlevania jump impulse:
+      this->player_vy_sub = this->level_data.jump_velocity;
+      this->player_y_sub = 0;
+      this->is_grounded = false;
+    }
+  }
+
+  // Variable jump height when releasing jump button mid-ascent:
+  if (!jump_held && this->player_vy_sub < -96) {
+    this->player_vy_sub = -96;
+  }
+
+  // Apply gravity acceleration (terminal velocity = 256 subpx/frame = 4 px/frame):
+  this->player_vy_sub = std::min<s32>(this->player_vy_sub + this->level_data.gravity, 256);
+  this->player_y_sub += this->player_vy_sub;
+
+  s32 dy = this->player_y_sub / 64;
+  this->player_y_sub %= 64;
+
+  s32 prev_bottom = transform.position.y + p_h;
+  transform.position.y += dy;
+  s32 new_bottom = transform.position.y + p_h;
+
+  bool landed = false;
+
+  // Check landing on elevated platforms when falling or standing:
+  if (this->player_vy_sub >= 0) {
+    for (const auto& plat : this->level_data.platforms) {
+      s32 plat_left = plat.x;
+      s32 plat_right = plat.x + static_cast<s32>(plat.width);
+      s32 plat_top = plat.y;
+
+      bool horiz_overlap = (transform.position.x + p_w > plat_left + 2) &&
+                           (transform.position.x < plat_right - 2);
+
+      if (horiz_overlap && prev_bottom <= plat_top + 4 && new_bottom >= plat_top) {
+        transform.position.y = plat_top - p_h;
+        new_bottom = plat_top;
+        this->player_vy_sub = 0;
+        this->player_y_sub = 0;
+        landed = true;
+        break;
+      }
+    }
+  }
+
+  // Check landing on solid castle floor (ground_y):
+  if (transform.position.y + p_h >= this->level_data.ground_y) {
+    transform.position.y = this->level_data.ground_y - p_h;
+    this->player_vy_sub = 0;
+    this->player_y_sub = 0;
+    landed = true;
+  }
+
+  this->is_grounded = landed;
+}
+
 void LevelScene::update_player_input(void) {
   if (!this->player.has_component<TransformComponent>()) {
     return;
@@ -613,7 +777,7 @@ void LevelScene::update_player_input(void) {
   s16 move_dx = 0;
   s16 move_dy = 0;
 
-  // Apply movement based on D-pad input via ControllerManager and hardware keys:
+  // Apply horizontal movement:
   if (controller_manager->is_action_activated("Move Left") || (keys & KEY_LEFT)) {
     transform.position.x -= this->player_speed;
     move_dx -= 1;
@@ -624,19 +788,32 @@ void LevelScene::update_player_input(void) {
     move_dx += 1;
   }
 
-  if (controller_manager->is_action_activated("Move Up") || (keys & KEY_UP)) {
-    transform.position.y -= this->player_speed;
-    move_dy -= 1;
-  }
+  if (this->level_data.platformer) {
+    if (move_dx != 0) {
+      this->player_dir_x = move_dx;
+      this->player_dir_y = 0;
+      if (NF_3DSPRITE[0].inuse) {
+        NF_Rotate3dSprite(0, 0, (this->player_dir_x < 0) ? 256 : 0, 0);
+      }
+    }
 
-  if (controller_manager->is_action_activated("Move Down") || (keys & KEY_DOWN)) {
-    transform.position.y += this->player_speed;
-    move_dy += 1;
-  }
+    this->update_platformer_physics(transform);
+  } else {
+    // Non-platformer vertical movement (top-down / shmup / free-roam):
+    if (controller_manager->is_action_activated("Move Up") || (keys & KEY_UP)) {
+      transform.position.y -= this->player_speed;
+      move_dy -= 1;
+    }
 
-  if (this->level_data.free_roam && (move_dx != 0 || move_dy != 0)) {
-    this->player_dir_x = move_dx;
-    this->player_dir_y = move_dy;
+    if (controller_manager->is_action_activated("Move Down") || (keys & KEY_DOWN)) {
+      transform.position.y += this->player_speed;
+      move_dy += 1;
+    }
+
+    if (this->level_data.free_roam && (move_dx != 0 || move_dy != 0)) {
+      this->player_dir_x = move_dx;
+      this->player_dir_y = move_dy;
+    }
   }
 
   // Clamp player position to level world boundaries:
@@ -645,17 +822,23 @@ void LevelScene::update_player_input(void) {
 
   if (transform.position.x < 0) {
     transform.position.x = 0;
-  } else if (transform.position.x > limit_w - static_cast<s32>(PLAYER_WIDTH)) {
-    transform.position.x = limit_w - static_cast<s32>(PLAYER_WIDTH);
+  } else if (transform.position.x > limit_w - static_cast<s32>(this->player_width)) {
+    transform.position.x = limit_w - static_cast<s32>(this->player_width);
   }
 
   if (transform.position.y < 0) {
     transform.position.y = 0;
-  } else if (transform.position.y > limit_h - static_cast<s32>(PLAYER_HEIGHT)) {
-    transform.position.y = limit_h - static_cast<s32>(PLAYER_HEIGHT);
+    if (this->level_data.platformer && this->player_vy_sub < 0) {
+      this->player_vy_sub = 0;
+    }
+  } else if (transform.position.y > limit_h - static_cast<s32>(this->player_height)) {
+    transform.position.y = limit_h - static_cast<s32>(this->player_height);
   }
 
-  // Handle shooting:
+  this->last_safe_x = static_cast<s16>(transform.position.x);
+  this->last_safe_y = static_cast<s16>(transform.position.y);
+
+  // Handle shooting / attacking:
   if (this->shoot_cooldown > 0) {
     this->shoot_cooldown--;
   }
@@ -690,13 +873,20 @@ void LevelScene::shoot_bullet(void) {
   u16 bullet_pal_id = asset_manager->get_pal_id("Player_Bullet");
 
   s16 bullet_start_x = player_transform.position.x + 34;
-  s16 bullet_start_y = player_transform.position.y + (PLAYER_HEIGHT - 49);
+  s16 bullet_start_y = player_transform.position.y + (this->player_height - 49);
   s32 bullet_vx = 240;
   s32 bullet_vy = 0;
 
-  if (this->level_data.free_roam) {
-    bullet_start_x = player_transform.position.x + (PLAYER_WIDTH / 2) - (BULLET_WIDTH / 2) + (this->player_dir_x * 20);
-    bullet_start_y = player_transform.position.y + (PLAYER_HEIGHT / 2) - (BULLET_HEIGHT / 2) + (this->player_dir_y * 20);
+  if (this->level_data.platformer) {
+    bullet_start_x = (this->player_dir_x >= 0)
+                         ? (player_transform.position.x + this->player_width)
+                         : (player_transform.position.x - BULLET_WIDTH);
+    bullet_start_y = player_transform.position.y + (this->player_height / 3);
+    bullet_vx = (this->player_dir_x >= 0) ? 240 : -240;
+    bullet_vy = 0;
+  } else if (this->level_data.free_roam) {
+    bullet_start_x = player_transform.position.x + (this->player_width / 2) - (BULLET_WIDTH / 2) + (this->player_dir_x * 20);
+    bullet_start_y = player_transform.position.y + (this->player_height / 2) - (BULLET_HEIGHT / 2) + (this->player_dir_y * 20);
     bullet_vx = this->player_dir_x * 240;
     bullet_vy = this->player_dir_y * 240;
   }
@@ -835,6 +1025,10 @@ void LevelScene::spawn_random_menace(void) {
   }
 
   s16 max_y = SCREEN_HEIGHT - MENACE_HEIGHT;
+  if (this->level_data.platformer) {
+    max_y = 140;
+  }
+
   s32 speed_range = (spawner.max_speed > spawner.min_speed)
                         ? (spawner.max_speed - spawner.min_speed + 1)
                         : 1;
@@ -878,8 +1072,8 @@ void LevelScene::update_menaces(void) {
 
   if (has_player) {
     const auto& pt = this->player.get_component<TransformComponent>();
-    player_center.x = pt.position.x + (PLAYER_WIDTH / 2);
-    player_center.y = pt.position.y + (PLAYER_HEIGHT / 2);
+    player_center.x = pt.position.x + (this->player_width / 2);
+    player_center.y = pt.position.y + (this->player_height / 2);
   }
 
   s32 max_w = std::max<s32>(SCREEN_WIDTH, this->level_data.world_width);
@@ -977,13 +1171,28 @@ void LevelScene::update_ui(void) {
   printf("\x1b[2;2H %-28.28s ", this->level_data.name.c_str());
   printf("\x1b[3;2H==============================");
   printf("\x1b[5;2HControls:");
-  printf("\x1b[6;4H- D-Pad : Move Player");
-  printf("\x1b[7;4H- Y     : Shoot");
-  printf("\x1b[8;4H- START : Pause (B: Title)");
-  printf("\x1b[9;4H- SELECT: Shutdown Console");
+  if (this->level_data.platformer) {
+    printf("\x1b[6;4H- Left/Right: Walk         ");
+    printf("\x1b[7;4H- B / A / Up: Jump (Dn+B)  ");
+    printf("\x1b[8;4H- Y         : Attack       ");
+    printf("\x1b[9;4H- START     : Pause (B:Menu)");
+  } else {
+    printf("\x1b[6;4H- D-Pad : Move Player      ");
+    printf("\x1b[7;4H- Y     : Shoot            ");
+    printf("\x1b[8;4H- START : Pause (B: Title) ");
+    printf("\x1b[9;4H- SELECT: Shutdown Console ");
+  }
   printf("\x1b[11;2H------------------------------");
 
-  if (this->level_data.free_roam) {
+  if (this->level_data.platformer) {
+    printf("\x1b[12;2HHugh Lives : %2d | Ground:%s  ",
+           this->player_lives, this->is_grounded ? "YES" : "AIR");
+    printf("\x1b[13;2HHugh Pos   : (%4ld, %4ld)     ", static_cast<long>(px), static_cast<long>(py));
+    printf("\x1b[14;2HDefeated   : %2lu / %2lu         ",
+           this->menaces_defeated_count,
+           this->level_data.target_score);
+    printf("\x1b[15;2HPlatforms  : %2d               ", static_cast<int>(this->level_data.platforms.size()));
+  } else if (this->level_data.free_roam) {
     printf("\x1b[12;2HPlayer Pos : (%4ld, %4ld)     ", static_cast<long>(px), static_cast<long>(py));
     printf("\x1b[13;2HCamera Pos : (%4ld, %4ld)     ", static_cast<long>(this->camera_x), static_cast<long>(this->camera_y));
     printf("\x1b[14;2HWorld Limit: %4ld x %4ld      ",

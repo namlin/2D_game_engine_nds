@@ -39,6 +39,10 @@ struct PlayerConfig {
   s16 start_y = 64;
   s16 speed = 2;
   int lives = 1;
+  u16 width = 64;
+  u16 height = 64;
+  u8 num_frames = 2;
+  u16 collider_radius = 16;
 };
 
 struct PropSpawnConfig {
@@ -52,6 +56,14 @@ struct PropSpawnConfig {
   s32 velocity_x = -60;
   s32 velocity_y = 0;
   int hp = 0;  // 0 = indestructible furniture/obstacle, >0 = destructible prop
+};
+
+struct PlatformConfig {
+  std::string sprite_id = "Platform";
+  s16 x = 0;
+  s16 y = 0;
+  u16 width = 32;
+  u16 height = 16;
 };
 
 struct EnemySpawnConfig {
@@ -91,6 +103,12 @@ struct LevelData {
   s32 world_width = 256;
   s32 world_height = 192;
 
+  // Platformer & gravity mode (e.g. Castlevania level):
+  bool platformer = false;
+  s32 gravity = 12;          // Vertical acceleration in 1/64 px per frame^2
+  s32 jump_velocity = -270;  // Jump impulse in 1/64 px per frame
+  s32 ground_y = 176;        // Solid floor Y coordinate in world space
+
   BgmConfig bgm;
   PlayerConfig player;
   RandomSpawnerConfig spawner;
@@ -98,6 +116,7 @@ struct LevelData {
   std::vector<BgLayerConfig> backgrounds;
   std::vector<SpriteAssetConfig> sprite_assets;
   std::vector<PropSpawnConfig> props;
+  std::vector<PlatformConfig> platforms;
   std::vector<EnemySpawnConfig> enemies;
 };
 

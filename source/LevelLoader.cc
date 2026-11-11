@@ -85,6 +85,18 @@ bool LevelLoader::load_from_file(const std::string& file_path, LevelData& out_da
       }
     }
 
+    else if (strcmp(cmd, "PLATFORMER") == 0) {
+      // PLATFORMER <gravity_subpx> <jump_vel_subpx> <ground_y>
+      int grav = 12, jump_v = -270, ground = 176;
+      if (sscanf(ptr, "%*s %d %d %d", &grav, &jump_v, &ground) >= 3) {
+        out_data.platformer = true;
+        out_data.free_roam = true;
+        out_data.gravity = grav;
+        out_data.jump_velocity = jump_v;
+        out_data.ground_y = ground;
+      }
+    }
+
     else if (strcmp(cmd, "BGM") == 0) {
       char path_buf[128] = {};
       unsigned int rate = 22050;
@@ -142,15 +154,44 @@ bool LevelLoader::load_from_file(const std::string& file_path, LevelData& out_da
     }
 
     else if (strcmp(cmd, "PLAYER") == 0) {
-      // PLAYER <sprite_id> <start_x> <start_y> <speed> <lives>
+      // PLAYER <sprite_id> <start_x> <start_y> <speed> <lives> [width] [height] [num_frames] [collider_radius]
       char id_buf[64] = {};
       int x = 20, y = 64, speed = 2, lives = 1;
-      if (sscanf(ptr, "%*s %63s %d %d %d %d", id_buf, &x, &y, &speed, &lives) >= 3) {
+      unsigned int w = 64, h = 64, frames = 2, radius = 16;
+      int matched = sscanf(ptr, "%*s %63s %d %d %d %d %u %u %u %u",
+                           id_buf, &x, &y, &speed, &lives, &w, &h, &frames, &radius);
+      if (matched >= 3) {
         out_data.player.sprite_id = id_buf;
         out_data.player.start_x = static_cast<s16>(x);
         out_data.player.start_y = static_cast<s16>(y);
         out_data.player.speed = static_cast<s16>(speed);
         out_data.player.lives = lives;
+        if (matched >= 7) {
+          out_data.player.width = static_cast<u16>(w);
+          out_data.player.height = static_cast<u16>(h);
+        }
+        if (matched >= 8) {
+          out_data.player.num_frames = static_cast<u8>(frames);
+        }
+        if (matched >= 9) {
+          out_data.player.collider_radius = static_cast<u16>(radius);
+        }
+      }
+    }
+
+    else if (strcmp(cmd, "PLATFORM") == 0) {
+      // PLATFORM <sprite_id> <x> <y> <width> <height>
+      char id_buf[64] = {};
+      int x = 0, y = 0;
+      unsigned int w = 32, h = 16;
+      if (sscanf(ptr, "%*s %63s %d %d %u %u", id_buf, &x, &y, &w, &h) >= 5) {
+        PlatformConfig plat;
+        plat.sprite_id = id_buf;
+        plat.x = static_cast<s16>(x);
+        plat.y = static_cast<s16>(y);
+        plat.width = static_cast<u16>(w);
+        plat.height = static_cast<u16>(h);
+        out_data.platforms.push_back(plat);
       }
     }
 
@@ -245,10 +286,18 @@ bool LevelLoader::save_to_file(const std::string& file_path, const LevelData& da
   fprintf(file, "NAME %s\n", data.name.c_str());
   fprintf(file, "NEXT_SCENE %s\n", data.next_scene.c_str());
   fprintf(file, "TARGET_SCORE %lu\n", static_cast<unsigned long>(data.target_score));
-  fprintf(file, "WORLD %ld %ld %d\n\n",
+  fprintf(file, "WORLD %ld %ld %d\n",
           static_cast<long>(data.world_width),
           static_cast<long>(data.world_height),
           data.free_roam ? 1 : 0);
+
+  if (data.platformer) {
+    fprintf(file, "PLATFORMER %ld %ld %ld\n",
+            static_cast<long>(data.gravity),
+            static_cast<long>(data.jump_velocity),
+            static_cast<long>(data.ground_y));
+  }
+  fprintf(file, "\n");
 
   if (!data.bgm.file_path.empty()) {
     fprintf(file, "BGM %s %lu %d\n\n",
@@ -277,11 +326,13 @@ bool LevelLoader::save_to_file(const std::string& file_path, const LevelData& da
   }
   fprintf(file, "\n");
 
-  fprintf(file, "# Player: PLAYER <sprite_id> <start_x> <start_y> <speed> <lives>\n");
-  fprintf(file, "PLAYER %s %d %d %d %d\n\n",
+  fprintf(file, "# Player: PLAYER <sprite_id> <start_x> <start_y> <speed> <lives> <w> <h> <frames> <radius>\n");
+  fprintf(file, "PLAYER %s %d %d %d %d %u %u %u %u\n\n",
           data.player.sprite_id.c_str(),
           data.player.start_x, data.player.start_y,
-          data.player.speed, data.player.lives);
+          data.player.speed, data.player.lives,
+          data.player.width, data.player.height,
+          data.player.num_frames, data.player.collider_radius);
 
   if (data.spawner.enabled) {
     fprintf(file, "# Continuous Spawner: SPAWNER <id> <min_int> <max_int> <max_act> <min_spd> <max_spd> <hp>\n");
@@ -290,6 +341,15 @@ bool LevelLoader::save_to_file(const std::string& file_path, const LevelData& da
             data.spawner.min_interval, data.spawner.max_interval, data.spawner.max_active,
             static_cast<long>(data.spawner.min_speed), static_cast<long>(data.spawner.max_speed),
             data.spawner.hp);
+  }
+
+  if (!data.platforms.empty()) {
+    fprintf(file, "# Solid Platforms: PLATFORM <sprite_id> <x> <y> <w> <h>\n");
+    for (const auto& plat : data.platforms) {
+      fprintf(file, "PLATFORM %s %d %d %u %u\n",
+              plat.sprite_id.c_str(), plat.x, plat.y, plat.width, plat.height);
+    }
+    fprintf(file, "\n");
   }
 
   fprintf(file, "# Furniture / Props: PROP <trigger_dist> <id> <x> <y> <w> <h> <radius> <vx> <vy> <hp>\n");

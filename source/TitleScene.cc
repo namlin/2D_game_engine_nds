@@ -28,10 +28,10 @@ void TitleScene::process_input(u32 keys_pressed, u32 keys_released, u32 keys_hel
   (void)touch;
 
   if (keys_pressed & (KEY_UP | KEY_LEFT)) {
-    this->selected_stage = (this->selected_stage == 0) ? 2 : (this->selected_stage - 1);
+    this->selected_stage = (this->selected_stage == 0) ? 3 : (this->selected_stage - 1);
     this->last_title_tick = 0;
   } else if (keys_pressed & (KEY_DOWN | KEY_RIGHT)) {
-    this->selected_stage = (this->selected_stage + 1) % 3;
+    this->selected_stage = (this->selected_stage + 1) % 4;
     this->last_title_tick = 0;
   }
 
@@ -40,8 +40,10 @@ void TitleScene::process_input(u32 keys_pressed, u32 keys_released, u32 keys_hel
       Game::get_instance()->get_scene_manager()->switch_to("level_1");
     } else if (this->selected_stage == 1) {
       Game::get_instance()->get_scene_manager()->switch_to("level_2");
-    } else {
+    } else if (this->selected_stage == 2) {
       Game::get_instance()->get_scene_manager()->switch_to("free_roam");
+    } else {
+      Game::get_instance()->get_scene_manager()->switch_to("castlevania");
     }
   }
 }
@@ -64,25 +66,25 @@ void TitleScene::update_title_ui(void) {
   printf("\x1b[3;2H     2D GAME ENGINE (NDS)     ");
   printf("\x1b[4;2H==============================");
 
-  printf("\x1b[6;4HSelect Stage (D-Pad):");
-  printf("\x1b[7;5H%s Stage 1-1: City Assault ", (this->selected_stage == 0) ? ">" : " ");
-  printf("\x1b[8;5H%s Stage 1-2: Nature Sector", (this->selected_stage == 1) ? ">" : " ");
-  printf("\x1b[9;5H%s Free Move: 768x512 Arena", (this->selected_stage == 2) ? ">" : " ");
+  printf("\x1b[6;3HSelect Stage (D-Pad):");
+  printf("\x1b[7;4H%s Stage 1-1: City Assault  ", (this->selected_stage == 0) ? ">" : " ");
+  printf("\x1b[8;4H%s Stage 1-2: Nature Sector ", (this->selected_stage == 1) ? ">" : " ");
+  printf("\x1b[9;4H%s Free Move: 768x512 Arena ", (this->selected_stage == 2) ? ">" : " ");
+  printf("\x1b[10;4H%s Castlevania: Hugh's Hall", (this->selected_stage == 3) ? ">" : " ");
 
   if ((global_frame_counter / 30) % 2 == 0) {
-    printf("\x1b[11;5H>>> PRESS START OR A <<<    ");
-    printf("\x1b[12;6HTOUCH SCREEN TO PLAY       ");
+    printf("\x1b[12;5H>>> PRESS START OR A <<<    ");
+    printf("\x1b[13;6HTOUCH SCREEN TO PLAY       ");
   } else {
-    printf("\x1b[11;5H                            ");
-    printf("\x1b[12;6H                            ");
+    printf("\x1b[12;5H                            ");
+    printf("\x1b[13;6H                            ");
   }
 
-  printf("\x1b[14;2HControls:");
-  printf("\x1b[15;4H- D-Pad : Move Ship / Menu");
-  printf("\x1b[16;4H- Y     : Shoot Bullet");
-  printf("\x1b[17;4H- START : Start / Pause");
-  printf("\x1b[18;4H- SELECT: Shutdown Console");
-  printf("\x1b[20;2H------------------------------");
-  printf("\x1b[21;5HLives: 1  |  1-Hit KO");
+  printf("\x1b[15;2HControls:");
+  printf("\x1b[16;4H- D-Pad : Move / Menu");
+  printf("\x1b[17;4H- B / A : Jump (Castlevania)");
+  printf("\x1b[18;4H- Y     : Shoot / Attack");
+  printf("\x1b[19;4H- START : Start / Pause");
+  printf("\x1b[20;4H- SELECT: Shutdown Console");
   printf("\x1b[22;2H==============================");
 }

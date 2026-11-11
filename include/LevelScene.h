@@ -12,6 +12,7 @@
 #include "LevelData.h"
 #include "LevelLoader.h"
 #include "Scene.h"
+#include "TransformComponent.h"
 
 struct BgRuntimeState {
   BgLayerConfig config;
@@ -27,11 +28,22 @@ class LevelScene : public Scene {
 
   int player_lives = 1;
   s16 player_speed = 2;
+  u16 player_width = PLAYER_WIDTH;
+  u16 player_height = PLAYER_HEIGHT;
   bool is_paused = false;
 
   Entity player;
   s16 player_dir_x = 1;
   s16 player_dir_y = 0;
+
+  // Platformer & gravity state (1/64 subpixel precision):
+  s32 player_vy_sub = 0;
+  s32 player_y_sub = 0;
+  bool is_grounded = false;
+  u32 frame_keys_pressed = 0;
+  u8 invincibility_timer = 0;
+  s16 last_safe_x = 20;
+  s16 last_safe_y = 64;
 
   // Camera position in world coordinates (0,0 in standard auto-scroll levels):
   s32 camera_x = 0;
@@ -53,7 +65,7 @@ class LevelScene : public Scene {
   std::vector<Entity> active_bullets;
   u8 shoot_cooldown = 0;
 
-  // Furniture / Prop management (3D sprite slots 41..55):
+  // Furniture / Prop / Platform visual management (3D sprite slots 41..120):
   std::vector<u8> free_prop_slots;
   std::vector<Entity> active_props;
 
@@ -65,10 +77,12 @@ class LevelScene : public Scene {
   void setup_default_level_data(void);
   void init_3D_sprites(void);
   void setup_level_assets_and_bgs(void);
+  void spawn_platforms(void);
   void cleanup_entities(void);
-  void spawn_player(void);
+  void spawn_player(s16 spawn_x, s16 spawn_y);
   void update_camera(void);
   void update_player_input(void);
+  void update_platformer_physics(TransformComponent& transform);
   void shoot_bullet(void);
   void update_bullets(void);
   void spawn_scripted_entities(void);

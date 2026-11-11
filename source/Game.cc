@@ -155,6 +155,7 @@ void Game::setup(void) {
   this->scene_manager->add_scene("level_1", new LevelScene("levels/stage_1_1.lvl"));
   this->scene_manager->add_scene("level_2", new LevelScene("levels/stage_1_2.lvl"));
   this->scene_manager->add_scene("free_roam", new LevelScene("levels/free_roam.lvl"));
+  this->scene_manager->add_scene("castlevania", new LevelScene("levels/castlevania.lvl"));
   this->scene_manager->switch_to("title");
 }
 
