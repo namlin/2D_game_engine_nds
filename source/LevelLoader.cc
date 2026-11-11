@@ -75,6 +75,16 @@ bool LevelLoader::load_from_file(const std::string& file_path, LevelData& out_da
       }
     }
 
+    else if (strcmp(cmd, "WORLD") == 0) {
+      // WORLD <width> <height> <free_roam>
+      int w = 256, h = 192, free_roam_int = 0;
+      if (sscanf(ptr, "%*s %d %d %d", &w, &h, &free_roam_int) >= 2) {
+        out_data.world_width = w;
+        out_data.world_height = h;
+        out_data.free_roam = (free_roam_int != 0);
+      }
+    }
+
     else if (strcmp(cmd, "BGM") == 0) {
       char path_buf[128] = {};
       unsigned int rate = 22050;
@@ -87,13 +97,14 @@ bool LevelLoader::load_from_file(const std::string& file_path, LevelData& out_da
     }
 
     else if (strcmp(cmd, "BG") == 0) {
-      // BG <layer> <bg_id> <file_path> <width> <height> <priority> <scroll_speed_x> <stream_total_width>
+      // BG <layer> <bg_id> <file_path> <width> <height> <priority> <scroll_speed_x> <stream_total_width> [scroll_speed_y]
       unsigned int layer = 3, width = 256, height = 256, prio = 3;
-      int scroll_speed = 0, stream_w = 0;
+      int scroll_speed_x = 0, stream_w = 0, scroll_speed_y = 0;
       char id_buf[64] = {};
       char path_buf[128] = {};
-      int matched = sscanf(ptr, "%*s %u %63s %127s %u %u %u %d %d",
-                           &layer, id_buf, path_buf, &width, &height, &prio, &scroll_speed, &stream_w);
+      int matched = sscanf(ptr, "%*s %u %63s %127s %u %u %u %d %d %d",
+                           &layer, id_buf, path_buf, &width, &height, &prio,
+                           &scroll_speed_x, &stream_w, &scroll_speed_y);
       if (matched >= 7) {
         BgLayerConfig bg;
         bg.layer = static_cast<u8>(layer);
@@ -102,8 +113,9 @@ bool LevelLoader::load_from_file(const std::string& file_path, LevelData& out_da
         bg.width = static_cast<u16>(width);
         bg.height = static_cast<u16>(height);
         bg.priority = static_cast<u8>(prio);
-        bg.scroll_speed_x = scroll_speed;
+        bg.scroll_speed_x = scroll_speed_x;
         bg.stream_total_width = (matched >= 8) ? stream_w : 0;
+        bg.scroll_speed_y = (matched >= 9) ? scroll_speed_y : 0;
         out_data.backgrounds.push_back(bg);
       }
     }
@@ -232,7 +244,11 @@ bool LevelLoader::save_to_file(const std::string& file_path, const LevelData& da
   fprintf(file, "# Level Definition File\n");
   fprintf(file, "NAME %s\n", data.name.c_str());
   fprintf(file, "NEXT_SCENE %s\n", data.next_scene.c_str());
-  fprintf(file, "TARGET_SCORE %lu\n\n", static_cast<unsigned long>(data.target_score));
+  fprintf(file, "TARGET_SCORE %lu\n", static_cast<unsigned long>(data.target_score));
+  fprintf(file, "WORLD %ld %ld %d\n\n",
+          static_cast<long>(data.world_width),
+          static_cast<long>(data.world_height),
+          data.free_roam ? 1 : 0);
 
   if (!data.bgm.file_path.empty()) {
     fprintf(file, "BGM %s %lu %d\n\n",
@@ -241,13 +257,14 @@ bool LevelLoader::save_to_file(const std::string& file_path, const LevelData& da
             data.bgm.loop ? 1 : 0);
   }
 
-  fprintf(file, "# Backgrounds: BG <layer> <id> <path> <w> <h> <prio> <scroll_speed> <stream_w>\n");
+  fprintf(file, "# Backgrounds: BG <layer> <id> <path> <w> <h> <prio> <scroll_speed_x> <stream_w> <scroll_speed_y>\n");
   for (const auto& bg : data.backgrounds) {
-    fprintf(file, "BG %u %s %s %u %u %u %ld %ld\n",
+    fprintf(file, "BG %u %s %s %u %u %u %ld %ld %ld\n",
             bg.layer, bg.bg_id.c_str(), bg.file_path.c_str(),
             bg.width, bg.height, bg.priority,
             static_cast<long>(bg.scroll_speed_x),
-            static_cast<long>(bg.stream_total_width));
+            static_cast<long>(bg.stream_total_width),
+            static_cast<long>(bg.scroll_speed_y));
   }
   fprintf(file, "\n");
 
@@ -296,4 +313,3 @@ bool LevelLoader::save_to_file(const std::string& file_path, const LevelData& da
   fclose(file);
   return true;
 }
-

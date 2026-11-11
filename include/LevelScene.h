@@ -16,6 +16,7 @@
 struct BgRuntimeState {
   BgLayerConfig config;
   s32 scroll_x = 0;
+  s32 scroll_y = 0;
   s32 last_chunk = 0;
 };
 
@@ -29,6 +30,12 @@ class LevelScene : public Scene {
   bool is_paused = false;
 
   Entity player;
+  s16 player_dir_x = 1;
+  s16 player_dir_y = 0;
+
+  // Camera position in world coordinates (0,0 in standard auto-scroll levels):
+  s32 camera_x = 0;
+  s32 camera_y = 0;
 
   // Level scroll progression (used to trigger furniture/prop and enemy spawns):
   s32 level_scroll_distance = 0;
@@ -60,6 +67,7 @@ class LevelScene : public Scene {
   void setup_level_assets_and_bgs(void);
   void cleanup_entities(void);
   void spawn_player(void);
+  void update_camera(void);
   void update_player_input(void);
   void shoot_bullet(void);
   void update_bullets(void);

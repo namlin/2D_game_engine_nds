@@ -19,6 +19,7 @@ struct BgLayerConfig {
   u16 height = 256;
   u8 priority = 3;
   s32 scroll_speed_x = 0;
+  s32 scroll_speed_y = 0;
   s32 stream_total_width = 0;  // 0 = standard hardware scroll, >0 = circular DMA chunk streaming
 };
 
@@ -85,6 +86,11 @@ struct LevelData {
   u32 target_score = 10;
   u8 sprite_layer_priority = 1;
 
+  // World bounds & camera mode:
+  bool free_roam = false;
+  s32 world_width = 256;
+  s32 world_height = 192;
+
   BgmConfig bgm;
   PlayerConfig player;
   RandomSpawnerConfig spawner;
@@ -96,4 +102,3 @@ struct LevelData {
 };
 
 #endif  // LEVELDATA_H
-
